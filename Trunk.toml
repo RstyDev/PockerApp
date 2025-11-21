@@ -6,5 +6,5 @@ ignore = ["./src/backend"]
 
 [serve]
 addresses = ["0.0.0.0"]
-port = 1420
-#port = 1480
+#port = 1400
+port = 1460

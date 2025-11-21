@@ -1,0 +1,41 @@
+[package]
+name = "pocker_app"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+#SSR
+axum = { version = "0.8.7", features = ["ws"], optional = true }
+tokio = { version = "1", features = ["full"], optional = true }
+futures-util = { version = "0.3", optional = true }
+tracing = { version = "0.1", optional = true }
+tracing-subscriber = { version = "0.3", optional = true }
+
+#Both
+dotenv = { version = "0.15.0", optional = false }
+chrono = {version= "0.4.40" ,features = ["serde"] }
+serde = { version = "1.0.219", features = ["derive"] }
+serde_json = { version = "1"}
+thiserror = { version = "2.0.12", features = ["default"] }
+
+
+#CSR
+sycamore = { version = "0.9.1", features = ["suspense"], optional = true }
+gloo-net = { version = "0.6.0", features = ["websocket"], optional = true}
+wasm-bindgen = { version = "0.2.100", optional = true }
+wasm-bindgen-futures = { version = "0.4.50", optional = true }
+serde-wasm-bindgen = { version = "0.6.5", optional = true }
+console_error_panic_hook = { version = "0.1.7", optional = true }
+web-sys = { version = "0.3.77", optional = true, features = ["WebSocket", 'Window', 'Document', 'HtmlDocument'] }
+log = "0.4.28"
+futures = { version = "0.3", optional = true }
+uuid = { version = "1", features = ["v4","js"]}
+
+
+[features]
+ssr = [ "dep:axum", "dep:tokio", "dep:futures-util", "dep:tracing-subscriber"
+    #    , "dep:shuttle-actix-web", "dep:shuttle-runtime" ,"dep:dotenv", "dep:async-trait"
+]
+csr = ["dep:wasm-bindgen", "dep:sycamore", "dep:wasm-bindgen-futures", "dep:serde-wasm-bindgen",
+    #"dep:async-std",
+    "dep:console_error_panic_hook", "dep:web-sys", "dep:gloo-net", "dep:futures", "dep:futures-util","dep:tracing", "dep:tracing-subscriber"]

@@ -1,29 +1,29 @@
+use std::sync::{Arc, Mutex};
+
 #[macro_export]
 macro_rules! string {
     ($x:expr) => {
         String::from($x)
     };
 }
-#[cfg(feature = "ssr")]
+
 #[macro_export]
-macro_rules! record_id {
-    ($table:expr, $id:expr) => {
-        surrealdb::RecordId::from(($table,$id))
-    };
-}
-#[cfg(feature = "ssr")]
-#[macro_export]
-macro_rules! exercise_db {
-    ($exercise:expr) => {
-        crate::backend::infrastructure::db::ExerciseDB::from($exercise)
+macro_rules! arc {
+    ($x:expr) => {
+        Arc::new($x)
     };
 }
 
-
-#[cfg(feature = "ssr")]
 #[macro_export]
-macro_rules! day_db {
-    ($day:expr) => {
-        crate::backend::infrastructure::db::DayDB::from($day)
+macro_rules! mutex {
+    ($x:expr) => {
+        Mutex::new($x)
     };
+}
+
+#[macro_export]
+macro_rules! arc_mutex {
+    ($x:expr) => {
+        Arc::new(Mutex::new($x))
+    }
 }
