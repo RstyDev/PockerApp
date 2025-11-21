@@ -1,14 +1,17 @@
-use serde::{Deserialize, Serialize};
 use crate::structs::User;
+use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Deserialize, Serialize, Debug, Default)]
 pub struct MessageText {
     pub message_type: EventType,
-    pub room: String,
     pub user: User,
 }
 
-
+#[derive(Clone, Deserialize, Serialize, Debug, Default)]
+pub struct MessageBack {
+    pub room: String,
+    pub users: Vec<User>,
+}
 
 #[derive(Copy, Clone, Deserialize, Serialize, Debug, Default)]
 pub enum EventType {

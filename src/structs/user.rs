@@ -1,11 +1,12 @@
-use serde::{Deserialize, Serialize};
 use crate::string;
+use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Deserialize, Serialize, Debug, Default, Eq, Hash)]
 pub struct User {
     role: Role,
     name: String,
-    value: Option<u8>
+    room: String,
+    value: Option<u8>,
 }
 
 impl PartialEq for User {
@@ -15,11 +16,12 @@ impl PartialEq for User {
 }
 
 impl User {
-    pub fn new(role: Role, name: &str, value: Option<u8>) -> User {
+    pub fn new(role: Role, name: &str, value: Option<u8>, room: String) -> User {
         User {
             role,
             name: string!(name),
             value,
+            room,
         }
     }
 
@@ -46,6 +48,14 @@ impl User {
     pub fn set_value(&mut self, value: Option<u8>) {
         self.value = value;
     }
+
+    pub fn room(&self) -> &str {
+        &self.room
+    }
+
+    pub fn set_room(&mut self, room: String) {
+        self.room = room;
+    }
 }
 
 #[derive(Copy, Clone, Deserialize, Serialize, Debug, Default, Eq, PartialEq, Hash)]
@@ -60,7 +70,7 @@ impl Into<Role> for String {
         match self.as_str() {
             "Master" => Role::Master,
             "Voter" => Role::Voter,
-            _ => unreachable!()
+            _ => unreachable!(),
         }
     }
 }

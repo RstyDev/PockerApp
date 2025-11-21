@@ -1,4 +1,6 @@
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+#[cfg(feature = "ssr")]
+use tokio::sync::Mutex;
 
 #[macro_export]
 macro_rules! string {
@@ -14,6 +16,7 @@ macro_rules! arc {
     };
 }
 
+#[cfg(feature = "ssr")]
 #[macro_export]
 macro_rules! mutex {
     ($x:expr) => {
@@ -21,9 +24,10 @@ macro_rules! mutex {
     };
 }
 
+#[cfg(feature = "ssr")]
 #[macro_export]
 macro_rules! arc_mutex {
     ($x:expr) => {
         Arc::new(Mutex::new($x))
-    }
+    };
 }
