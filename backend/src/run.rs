@@ -1,5 +1,3 @@
-use crate::structs::{MessageBack, MessageText, Role, User};
-use crate::{arc, arc_mutex, mutex, string};
 use axum::Router;
 use axum::extract::ws::{Message, WebSocket};
 use axum::extract::{State, WebSocketUpgrade};
@@ -18,6 +16,8 @@ use tokio::net::TcpListener;
 use tokio::sync::{broadcast, Mutex, MutexGuard};
 use tokio::sync::broadcast::{Receiver, Sender};
 use tokio::task;
+use macros::{arc_mutex, string};
+use structs::{MessageBack, MessageText, Role, User};
 use uuid::Uuid;
 
 #[derive(Debug, Clone)]
@@ -79,6 +79,7 @@ async fn ws_handler(ws: WebSocketUpgrade, State(state): State<AppState>) -> impl
 async fn handle_socket(mut socket: WebSocket, state: AppState) {
     println!("Client connected");
     let this_user: Arc<Mutex<Option<User>>> = arc_mutex!(None);
+
     let this_other = this_user.clone();
     let (mut send, mut recv) = socket.split();
     // let arc_users = state.users.clone();
@@ -119,27 +120,45 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
                         {
                             user_lock = this_other.lock().await.clone();
                         }
-                        if let Some(user_lock) = user_lock{
+                        if let Some(user_lock) = user_lock {
                             let room_lock;
                             {
-                                room_lock = arc_rooms.lock().await.iter().cloned().find(|room|{
-                                    room.id.eq(user_lock.room())
-                                });
+                                room_lock = arc_rooms
+                                    .lock()
+                                    .await
+                                    .iter()
+                                    .cloned()
+                                    .find(|room| room.id.eq(user_lock.room()));
                             }
                             match room_lock {
                                 Some(room) => {
                                     let users;
                                     {
-                                        users = room.users.lock().await.iter().cloned().collect::<Vec<User>>();
+                                        users = room
+                                            .users
+                                            .lock()
+                                            .await
+                                            .iter()
+                                            .cloned()
+                                            .collect::<Vec<User>>();
                                     }
-                                    if let Err(e) = send.send(Message::Text(serde_json::to_string(&MessageBack{users, room: room.id.to_owned()}).unwrap().into())).await{
+                                    if let Err(e) = send
+                                        .send(Message::Text(
+                                            serde_json::to_string(&MessageBack {
+                                                users,
+                                                room: room.id.to_owned(),
+                                            })
+                                            .unwrap()
+                                            .into(),
+                                        ))
+                                        .await
+                                    {
                                         println!("Disconnected 86");
                                         break;
                                     }
-                                },
+                                }
                                 None => {}
                             }
-
                         }
                         // let lock = state.users.lock().await.iter().cloned().collect::<Vec<User>>();
                         // if send.send(Message::Text(serde_json::to_string(&lock).unwrap().into())).await.is_err() {
@@ -192,10 +211,11 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
                         }
                     }
 
-
                     this_user.lock().await.replace(new_user.to_owned());
                 }
-                Err(e) => { dbg!(&e); },
+                Err(e) => {
+                    dbg!(&e);
+                }
             }
             if let Some(user) = this_user.lock().await.as_ref() {
                 if let Some(room) = state
@@ -206,14 +226,7 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
                     .cloned()
                     .find(|room| room.id.eq(user.room()))
                 {
-                    room.tx
-                        .send(
-                            serde_json::to_string(
-                                user,
-                            )
-                            .unwrap(),
-                        )
-                        .unwrap();
+                    room.tx.send(serde_json::to_string(user).unwrap()).unwrap();
                 }
             }
             // let lock = arc_users.lock().await.iter().cloned().collect::<Vec<User>>();

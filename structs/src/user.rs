@@ -1,5 +1,5 @@
-use crate::string;
 use serde::{Deserialize, Serialize};
+use macros::string;
 
 #[derive(Clone, Deserialize, Serialize, Debug, Default, Eq, Hash)]
 pub struct User {

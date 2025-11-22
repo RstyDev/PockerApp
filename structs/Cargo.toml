@@ -1,0 +1,12 @@
+[package]
+name = "structs"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "structs"
+path = "src/lib.rs"
+
+[dependencies]
+macros = { path = "../macros" }
+serde = { workspace = true }

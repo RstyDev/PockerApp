@@ -1,4 +1,4 @@
-use crate::structs::User;
+use crate::user::User;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Deserialize, Serialize, Debug, Default)]

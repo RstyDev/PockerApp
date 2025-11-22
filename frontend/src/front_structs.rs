@@ -1,5 +1,4 @@
-use crate::structs::User;
-use serde::{Deserialize, Serialize};
+use structs::User;
 
 #[derive(Clone, Debug, Default)]
 pub enum State {

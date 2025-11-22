@@ -1,8 +1,4 @@
-use crate::string;
-use crate::{
-    frontend::{structs::State, table::Table},
-    structs::*,
-};
+
 use futures::{SinkExt, StreamExt, channel::mpsc::UnboundedSender};
 use gloo_net::websocket::{Message, futures::WebSocket};
 use std::sync::LazyLock;
@@ -10,9 +6,14 @@ use sycamore::prelude::*;
 use sycamore::rt::console_error;
 use wasm_bindgen_futures::spawn_local;
 use web_sys::SubmitEvent;
+use macros::string;
+use structs::{EventType, MessageBack, MessageText, Role, User};
+use crate::front_structs::State;
+use crate::table::Table;
+
 pub static HOST: LazyLock<String> = LazyLock::new(|| std::env!("BACKEND").to_string());
 
-// #[component]
+#[component]
 pub fn App() -> View {
     let users = create_signal(Vec::<User>::new());
     let state = create_signal(State::NotLogged);
@@ -39,7 +40,7 @@ pub fn App() -> View {
         }
         console_log!("Messages: {:?}", users.get_clone());
     });
-    create_effect(move ||{
+    create_effect(move || {
         if user_role.get_clone().eq("Master") {
             room.set(String::new());
         }
@@ -55,12 +56,10 @@ pub fn App() -> View {
 
             let (mut write, mut read) = ws.split();
 
-            // Canal para enviar mensajes desde la UI
             let (tx, mut rx) = futures::channel::mpsc::unbounded();
 
             ws_sender.set(Some(tx));
 
-            // Task para recibir mensajes del servidor
             spawn_local({
                 let users = users.clone();
 
@@ -72,10 +71,9 @@ pub fn App() -> View {
                                     console_log!("Message: {:?}", message);
                                     room.set(message.room);
                                     users.set(message.users);
-                                },
-                                Err(e) => console_error!("Error: {}",e),
+                                }
+                                Err(e) => console_error!("Error: {}", e),
                             }
-
                         }
                     }
                 }
