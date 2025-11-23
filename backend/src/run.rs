@@ -74,8 +74,6 @@ async fn ws_handler(ws: WebSocketUpgrade, State(state): State<AppState>) -> impl
 async fn handle_socket(socket: WebSocket, state: AppState) {
     println!("Client connected");
     let this_user: Arc<Mutex<Option<User>>> = arc_mutex!(None);
-    let is_reaady = arc_mutex!(false);
-    let is_reaady2 = is_reaady.clone();
     let this_other = this_user.clone();
     let (mut send, mut recv) = socket.split();
     // let arc_users = state.users.clone();
@@ -106,10 +104,7 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
                 }
                 if let Some(room) = rooms_lock {
                     let mut rx = room.tx.subscribe();
-                    {
-                        *is_reaady2.lock().await = true;
-                        println!("Subscribed Room {:#?}", room);
-                    }
+
                     while let Ok(msg) = rx.recv().await {
                         dbg!(&msg);
                         let user_lock;
@@ -211,10 +206,6 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
                     .cloned()
                     .find(|room| room.id.eq(user.room()))
                 {
-                    while *is_reaady.lock().await == false {
-                        // println!("Not locked yet {}", room.tx.receiver_count());
-                    }
-
                     if let Err(e) = room.tx.send(serde_json::to_string(&user).unwrap()) {
                         dbg!(&e);
                     }
