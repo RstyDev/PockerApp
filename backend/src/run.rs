@@ -104,7 +104,7 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
                 }
                 if let Some(room) = rooms_lock {
                     let mut rx = room.tx.subscribe();
-
+                    println!("Suscribed at 107: {:#?}", rx);
                     while let Ok(msg) = rx.recv().await {
                         dbg!(&msg);
                         let user_lock;
