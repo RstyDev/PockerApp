@@ -74,29 +74,42 @@ async fn ws_handler(ws: WebSocketUpgrade, State(state): State<AppState>) -> impl
 async fn handle_socket(socket: WebSocket, state: AppState) {
     println!("Client connected");
     let this_user: Arc<Mutex<Option<User>>> = arc_mutex!(None);
-
+    let is_reaady = arc_mutex!(false);
+    let is_reaady2 = is_reaady.clone();
     let this_other = this_user.clone();
     let (mut send, mut recv) = socket.split();
     // let arc_users = state.users.clone();
     let arc_rooms = state.rooms.clone();
     let mut send_task = task::spawn(async move {
         'outer: loop {
-            let user_lock;
-            {
+            let mut user_lock;
+            loop {
                 user_lock = this_other.lock().await.clone();
+                if user_lock.is_some() {
+                    println!("User is {:#?}", user_lock);
+                    break;
+                }
             }
             if let Some(user) = user_lock {
-                let rooms_lock;
-                {
+                let mut rooms_lock;
+                loop {
                     rooms_lock = arc_rooms
                         .lock()
                         .await
                         .iter()
                         .find(|room| room.id.eq(user.room()))
                         .cloned();
+                    if rooms_lock.is_some() {
+                        println!("Room is {:#?}", rooms_lock);
+                        break;
+                    }
                 }
                 if let Some(room) = rooms_lock {
                     let mut rx = room.tx.subscribe();
+                    {
+                        *is_reaady2.lock().await = true;
+                        println!("Subscribed Room {:#?}", room);
+                    }
                     while let Ok(msg) = rx.recv().await {
                         dbg!(&msg);
                         let user_lock;
@@ -142,6 +155,8 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
                         }
                     }
                     break 'outer;
+                } else {
+                    dbg!(&arc_rooms);
                 }
             }
         }
@@ -196,6 +211,10 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
                     .cloned()
                     .find(|room| room.id.eq(user.room()))
                 {
+                    while *is_reaady.lock().await == false {
+                        // println!("Not locked yet {}", room.tx.receiver_count());
+                    }
+
                     if let Err(e) = room.tx.send(serde_json::to_string(&user).unwrap()) {
                         dbg!(&e);
                     }
@@ -214,12 +233,12 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
             {
                 let mut users_lock = room.users.lock().await;
                 users_lock.remove(user);
-                room.tx
-                    .send(
-                        serde_json::to_string(&users_lock.iter().cloned().collect::<Vec<User>>())
-                            .unwrap(),
-                    )
-                    .unwrap();
+                if let Err(e) = room.tx.send(
+                    serde_json::to_string(&users_lock.iter().cloned().collect::<Vec<User>>())
+                        .unwrap(),
+                ) {
+                    dbg!(&e);
+                };
             }
         }
         // if let Some(user) = this_user.lock().await.as_ref() {
