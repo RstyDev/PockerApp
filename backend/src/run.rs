@@ -105,6 +105,27 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
                 if let Some(room) = rooms_lock {
                     let mut rx = room.tx.subscribe();
                     println!("Suscribed at 107: {:#?}", rx);
+                    let users = room
+                        .users
+                        .lock()
+                        .await
+                        .iter()
+                        .cloned()
+                        .collect::<Vec<User>>();
+                    if let Err(e) = send
+                        .send(Message::Text(
+                            serde_json::to_string(&MessageBack {
+                                users,
+                                room: room.id.to_owned(),
+                            })
+                            .unwrap()
+                            .into(),
+                        ))
+                        .await
+                    {
+                        dbg!(&e);
+                        break;
+                    }
                     while let Ok(msg) = rx.recv().await {
                         dbg!(&msg);
                         let user_lock;
@@ -132,7 +153,7 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
                                         .cloned()
                                         .collect::<Vec<User>>();
                                 }
-                                if let Err(_) = send
+                                if let Err(e) = send
                                     .send(Message::Text(
                                         serde_json::to_string(&MessageBack {
                                             users,
@@ -143,7 +164,7 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
                                     ))
                                     .await
                                 {
-                                    println!("Disconnected 86");
+                                    dbg!(&e);
                                     break;
                                 }
                             }
