@@ -1,10 +1,11 @@
-extern crate sycamore;
-extern crate gloo_net;
 extern crate futures;
+extern crate gloo_net;
+extern crate sycamore;
 extern crate web_sys;
 
 mod app;
 mod front_structs;
+mod libs;
 mod table;
 use app::App;
 

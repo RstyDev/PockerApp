@@ -1,23 +1,20 @@
 use axum::Router;
 use axum::extract::ws::{Message, WebSocket};
 use axum::extract::{State, WebSocketUpgrade};
-use axum::handler::{Handler, HandlerWithoutStateExt};
 use axum::response::IntoResponse;
 use axum::routing::get;
 use dotenv::dotenv;
 use futures_util::{SinkExt, StreamExt};
-use serde::{Deserialize, Serialize};
-use serde_json::Value;
-use std::collections::{HashMap, HashSet};
+use macros::{arc_mutex, string};
+use std::collections::HashSet;
 use std::env;
 use std::net::SocketAddr;
-use std::sync::{Arc};
-use tokio::net::TcpListener;
-use tokio::sync::{broadcast, Mutex, MutexGuard};
-use tokio::sync::broadcast::{Receiver, Sender};
-use tokio::task;
-use macros::{arc_mutex, string};
+use std::sync::Arc;
 use structs::{MessageBack, MessageText, Role, User};
+use tokio::net::TcpListener;
+use tokio::sync::broadcast::Sender;
+use tokio::sync::{Mutex, broadcast};
+use tokio::task;
 use uuid::Uuid;
 
 #[derive(Debug, Clone)]
@@ -51,8 +48,6 @@ struct AppState {
 pub async fn run() -> std::io::Result<()> {
     tracing_subscriber::fmt::init();
     dotenv().ok();
-    let users: HashSet<User> = HashSet::new();
-    let (tx, rx) = broadcast::channel::<String>(20);
     // let state = Arc::new(tx);
     let state = AppState {
         rooms: arc_mutex!(vec![]),
@@ -76,7 +71,7 @@ pub async fn run() -> std::io::Result<()> {
 async fn ws_handler(ws: WebSocketUpgrade, State(state): State<AppState>) -> impl IntoResponse {
     ws.on_upgrade(|socket| async move { handle_socket(socket, state).await })
 }
-async fn handle_socket(mut socket: WebSocket, state: AppState) {
+async fn handle_socket(socket: WebSocket, state: AppState) {
     println!("Client connected");
     let this_user: Arc<Mutex<Option<User>>> = arc_mutex!(None);
 
@@ -104,18 +99,6 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
                     let mut rx = room.tx.subscribe();
                     while let Ok(msg) = rx.recv().await {
                         dbg!(&msg);
-                        // match serde_json::from_str::<User>(&msg) {
-                        //     Ok(message) => {
-                        //         dbg!(&message);
-                        //
-                        //         // lock.replace(message.)
-                        //         // state.users.lock().await.insert(message.user.clone());
-                        //         // let mut lock = this_other.lock().await;
-                        //         // *lock = Some(message.user);
-                        //         // println!("Users: {:#?}",state.users)
-                        //     }
-                        //     Err(e) => { dbg!(&e); },
-                        // }
                         let user_lock;
                         {
                             user_lock = this_other.lock().await.clone();
@@ -130,48 +113,35 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
                                     .cloned()
                                     .find(|room| room.id.eq(user_lock.room()));
                             }
-                            match room_lock {
-                                Some(room) => {
-                                    let users;
-                                    {
-                                        users = room
-                                            .users
-                                            .lock()
-                                            .await
-                                            .iter()
-                                            .cloned()
-                                            .collect::<Vec<User>>();
-                                    }
-                                    if let Err(e) = send
-                                        .send(Message::Text(
-                                            serde_json::to_string(&MessageBack {
-                                                users,
-                                                room: room.id.to_owned(),
-                                            })
-                                            .unwrap()
-                                            .into(),
-                                        ))
+                            if let Some(room) = room_lock {
+                                let users;
+                                {
+                                    users = room
+                                        .users
+                                        .lock()
                                         .await
-                                    {
-                                        println!("Disconnected 86");
-                                        break;
-                                    }
+                                        .iter()
+                                        .cloned()
+                                        .collect::<Vec<User>>();
                                 }
-                                None => {}
+                                if let Err(_) = send
+                                    .send(Message::Text(
+                                        serde_json::to_string(&MessageBack {
+                                            users,
+                                            room: room.id.to_owned(),
+                                        })
+                                        .unwrap()
+                                        .into(),
+                                    ))
+                                    .await
+                                {
+                                    println!("Disconnected 86");
+                                    break;
+                                }
                             }
                         }
-                        // let lock = state.users.lock().await.iter().cloned().collect::<Vec<User>>();
-                        // if send.send(Message::Text(serde_json::to_string(&lock).unwrap().into())).await.is_err() {
-                        //     println!("Disconnected 86");
-                        //     break;
-                        // }
                     }
                     break 'outer;
-
-                    // println!("Removing user {:#?}",user);
-                    // state.users.lock().await.remove(&user);
-
-                    println!("Disconnected 90");
                 }
             }
         }
@@ -226,11 +196,11 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
                     .cloned()
                     .find(|room| room.id.eq(user.room()))
                 {
-                    room.tx.send(serde_json::to_string(user).unwrap()).unwrap();
+                    if let Err(e) = room.tx.send(serde_json::to_string(&user).unwrap()) {
+                        dbg!(&e);
+                    }
                 }
             }
-            // let lock = arc_users.lock().await.iter().cloned().collect::<Vec<User>>();
-            // tx_clone.send(serde_json::to_string(&lock).unwrap()).unwrap();
         }
         dbg!(&this_user);
         if let Some(user) = this_user.lock().await.as_ref() {
@@ -263,8 +233,8 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
     });
 
     tokio::select! {
-        a = (&mut send_task) => recv_task.abort(),
-        b = (&mut recv_task) => send_task.abort(),
+        _a = (&mut send_task) => recv_task.abort(),
+        _b = (&mut recv_task) => send_task.abort(),
     }
 
     println!("end of handle 187");

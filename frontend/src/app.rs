@@ -1,21 +1,21 @@
-
+use crate::front_structs::State;
+use crate::table::Table;
 use futures::{SinkExt, StreamExt, channel::mpsc::UnboundedSender};
 use gloo_net::websocket::{Message, futures::WebSocket};
+use macros::string;
 use std::sync::LazyLock;
+use structs::{EventType, MessageBack, MessageText, Role, User};
 use sycamore::prelude::*;
 use sycamore::rt::console_error;
 use wasm_bindgen_futures::spawn_local;
 use web_sys::SubmitEvent;
-use macros::string;
-use structs::{EventType, MessageBack, MessageText, Role, User};
-use crate::front_structs::State;
-use crate::table::Table;
 
 pub static HOST: LazyLock<String> = LazyLock::new(|| std::env!("BACKEND").to_string());
 
 #[component]
 pub fn App() -> View {
     let users = create_signal(Vec::<User>::new());
+    let this_user = create_signal(None::<User>);
     let state = create_signal(State::NotLogged);
     let ws_sender: Signal<Option<UnboundedSender<Message>>> =
         create_signal(None::<UnboundedSender<Message>>);
@@ -32,7 +32,6 @@ pub fn App() -> View {
         true => string!("Voter"),
         false => string!("Master"),
     });
-
     create_memo(move || {
         match master_is_there.get() {
             true => user_role.set(string!("Voter")),
@@ -45,24 +44,17 @@ pub fn App() -> View {
             room.set(String::new());
         }
     });
-
     spawn_local({
         let users = users.clone();
         let ws_sender = ws_sender.clone();
-
         async move {
             let ws = WebSocket::open(&HOST).expect("no se pudo conectar al websocket");
             console_log!("Connected to WebSocket");
-
             let (mut write, mut read) = ws.split();
-
             let (tx, mut rx) = futures::channel::mpsc::unbounded();
-
             ws_sender.set(Some(tx));
-
             spawn_local({
                 let users = users.clone();
-
                 async move {
                     while let Some(msg) = read.next().await {
                         if let Ok(Message::Text(txt)) = msg {
@@ -71,6 +63,7 @@ pub fn App() -> View {
                                     console_log!("Message: {:?}", message);
                                     room.set(message.room);
                                     users.set(message.users);
+                                    state.set(State::Logged);
                                 }
                                 Err(e) => console_error!("Error: {}", e),
                             }
@@ -78,8 +71,6 @@ pub fn App() -> View {
                     }
                 }
             });
-
-            // Task para enviar mensajes desde la UI
             spawn_local(async move {
                 while let Some(msg) = rx.next().await {
                     let _ = write.send(msg).await;
@@ -87,7 +78,6 @@ pub fn App() -> View {
             });
         }
     });
-
     view! {
         (match state.get_clone(){
             State::NotLogged => view!{
@@ -96,8 +86,9 @@ pub fn App() -> View {
                     console_log!("Submitted");
                     spawn_local(async move {
                         let send = ws_sender.split().0;
+                        console_dbg!(&user_role);
                         let user = User::new(user_role.get_clone().into(),user_name.get_clone().as_str(), None, room.get_clone());
-                        state.set(State::Logged(user.clone()));
+                        this_user.set(Some(user.clone()));
                         send.get_clone().unwrap().send(Message::Text(serde_json::to_string(&MessageText{ message_type: EventType::Start, user }).unwrap())).await.unwrap();
                     });
 
@@ -112,7 +103,6 @@ pub fn App() -> View {
                                 option(value="Voter"){"Dev/QA/BA"}
                             },
                         })
-
                     }
                     (match user_role.get_clone().as_ref(){
                         "Voter" => view!{
@@ -124,7 +114,7 @@ pub fn App() -> View {
                     input(r#type="submit"){"Submit"}
                 }
             },
-            State::Logged(user) => view!{ Table(user = user, users = users, ws_sender = ws_sender) }
+            State::Logged => view!{ Table(user = this_user.get_clone().unwrap(), users = users, ws_sender = ws_sender) }
         })
     }
 }
