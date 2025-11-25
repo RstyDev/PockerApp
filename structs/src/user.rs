@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use macros::string;
+use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Deserialize, Serialize, Debug, Default, Eq, Hash)]
 pub struct User {
@@ -64,6 +64,24 @@ pub enum Role {
     #[default]
     Voter,
 }
+
+impl ToString for Role {
+    fn to_string(&self) -> String {
+        match self {
+            Role::Master => string!("Master"),
+            Role::Voter => string!("Voter"),
+        }
+    }
+}
+
+// impl Into<String> for Role {
+//     fn into(self) -> String {
+//         match self {
+//             Role::Master => string!("Master"),
+//             Role::Voter => string!("Voter"),
+//         }
+//     }
+// }
 
 impl Into<Role> for String {
     fn into(self) -> Role {

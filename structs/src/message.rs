@@ -10,6 +10,7 @@ pub struct MessageText {
 #[derive(Clone, Deserialize, Serialize, Debug, Default)]
 pub struct MessageBack {
     pub room: String,
+    pub show: bool,
     pub users: Vec<User>,
 }
 

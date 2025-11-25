@@ -7,6 +7,7 @@ mod app;
 mod front_structs;
 mod libs;
 mod table;
+mod user_cards;
 use app::App;
 
 pub fn main() {

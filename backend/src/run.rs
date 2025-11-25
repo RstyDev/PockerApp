@@ -6,7 +6,7 @@ use axum::routing::get;
 use dotenv::dotenv;
 use futures_util::{SinkExt, StreamExt};
 use macros::{arc_mutex, string};
-use std::collections::HashSet;
+use std::collections::HashMap;
 use std::env;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -20,7 +20,7 @@ use uuid::Uuid;
 #[derive(Debug, Clone)]
 struct Room {
     id: String,
-    users: Arc<Mutex<HashSet<User>>>,
+    users: Arc<Mutex<HashMap<String, User>>>,
     tx: Sender<String>,
 }
 impl PartialEq for Room {
@@ -110,12 +110,14 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
                         .lock()
                         .await
                         .iter()
+                        .map(|(k, v)| v)
                         .cloned()
                         .collect::<Vec<User>>();
                     if let Err(e) = send
                         .send(Message::Text(
                             serde_json::to_string(&MessageBack {
                                 users,
+                                show: false,
                                 room: room.id.to_owned(),
                             })
                             .unwrap()
@@ -150,6 +152,7 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
                                         .lock()
                                         .await
                                         .iter()
+                                        .map(|(_, v)| v)
                                         .cloned()
                                         .collect::<Vec<User>>();
                                 }
@@ -157,6 +160,7 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
                                     .send(Message::Text(
                                         serde_json::to_string(&MessageBack {
                                             users,
+                                            show: false,
                                             room: room.id.to_owned(),
                                         })
                                         .unwrap()
@@ -200,11 +204,17 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
                         .find(|room| room.id.eq(&new_user.room()))
                     {
                         Some(room) => {
-                            room.users.lock().await.replace(new_user.to_owned());
+                            room.users
+                                .lock()
+                                .await
+                                .insert(new_user.name().to_owned(), new_user.to_owned());
                         }
                         None => {
                             let new_room = Room {
-                                users: arc_mutex!(HashSet::from([new_user.to_owned()])),
+                                users: arc_mutex!(HashMap::from([(
+                                    new_user.name().to_owned(),
+                                    new_user.to_owned()
+                                )])),
                                 tx: broadcast::channel::<String>(20).0,
                                 id: new_user.room().to_owned(),
                             };
@@ -244,10 +254,16 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
                 .find(|room| room.id.eq(user.room()))
             {
                 let mut users_lock = room.users.lock().await;
-                users_lock.remove(user);
+                users_lock.remove(user.name());
                 if let Err(e) = room.tx.send(
-                    serde_json::to_string(&users_lock.iter().cloned().collect::<Vec<User>>())
-                        .unwrap(),
+                    serde_json::to_string(
+                        &users_lock
+                            .iter()
+                            .map(|(_, v)| v)
+                            .cloned()
+                            .collect::<Vec<User>>(),
+                    )
+                    .unwrap(),
                 ) {
                     dbg!(&e);
                 };

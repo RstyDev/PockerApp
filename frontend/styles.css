@@ -38,3 +38,16 @@ input[type="number"]::-webkit-outer-spin-button {
     -webkit-appearance: none;
     margin: 0;
 }
+
+.card {
+    border: solid 1px;
+    width: 30px;
+    height: 50px;
+    border-radius: 5px;
+    &.voting {
+        background: red;
+    }
+    &.voted {
+        background-color: green;
+    }
+}

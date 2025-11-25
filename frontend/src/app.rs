@@ -16,6 +16,7 @@ pub static HOST: LazyLock<String> = LazyLock::new(|| std::env!("BACKEND").to_str
 pub fn App() -> View {
     let users = create_signal(Vec::<User>::new());
     let this_user = create_signal(None::<User>);
+    let show = create_signal(false);
     let state = create_signal(State::NotLogged);
     let ws_sender: Signal<Option<UnboundedSender<Message>>> =
         create_signal(None::<UnboundedSender<Message>>);
@@ -61,6 +62,7 @@ pub fn App() -> View {
                             match serde_json::from_str::<MessageBack>(&txt) {
                                 Ok(message) => {
                                     console_log!("Message: {:?}", message);
+                                    show.set(message.show);
                                     room.set(message.room);
                                     users.set(message.users);
                                     state.set(State::Logged);
@@ -114,7 +116,7 @@ pub fn App() -> View {
                     input(r#type="submit"){"Submit"}
                 }
             },
-            State::Logged => view!{ Table(user = this_user.get_clone().unwrap(), users = users, ws_sender = ws_sender) }
+            State::Logged => view!{ Table(user = this_user.get_clone().unwrap(),show = show, users = users, ws_sender = ws_sender) }
         })
     }
 }

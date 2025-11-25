@@ -1,4 +1,4 @@
-use crate::libs::copy_to_clipboard;
+use crate::{libs::copy_to_clipboard, user_cards::UserCards};
 use futures::{SinkExt, channel::mpsc::UnboundedSender};
 use gloo_net::websocket::Message;
 use std::rc::Rc;
@@ -11,13 +11,16 @@ use web_sys::SubmitEvent;
 pub fn Table(
     mut user: User,
     users: Signal<Vec<User>>,
+    show: Signal<bool>,
     ws_sender: Signal<Option<UnboundedSender<Message>>>,
 ) -> View {
     let is_master = user.role() == Role::Master;
+
     let master = users
         .get_clone()
         .into_iter()
         .find(|user| user.role() == Role::Master);
+    let number = create_signal(String::new());
     let code = Rc::new(
         master
             .as_ref()
@@ -49,33 +52,31 @@ pub fn Table(
             },
             false => view!{},
         })
-        Indexed(
-            list=users,
-            view=|user| view!{
-                article(){
-                    (match user.role(){
-                        Role::Master => user.name().to_string(),
-                        Role::Voter => format!("{}: {}",user.name(),user.value().map(|v|v.to_string()).unwrap_or_default())
-                    })
-                }
-            }
-        )
+        UserCards(users = users, show = show)
         (match is_master{
-            true => view!{},
+            true => view!{
+                button(on:click = move |_|{
+                    let send = ws_sender.clone();
+                    let user = user.clone();
+                    spawn_local(async move {
+                        send.get_clone().unwrap().send(Message::Text(serde_json::to_string(&MessageText{ message_type: EventType::Show, user }).unwrap())).await.unwrap();
+                    });
+                }){"Show cards"}
+            },
             false => view!{
                 form(on:submit = move |ev:SubmitEvent| {
                     ev.prevent_default();
                     let ws_sender = ws_sender.clone();
-                    let user = user.clone();
+                    let mut user = user.clone();
                     spawn_local(async move {
                         let send = ws_sender.split().0;
-
+                        user.set_value(number.get_clone().parse().ok());
 
                         send.get_clone().unwrap().send(Message::Text(serde_json::to_string(&MessageText{ message_type: EventType::Start, user }).unwrap())).await.unwrap();
 
                     });
                 }){
-                    input(r#type="number"){}
+                    input(r#type="number",bind:value=number){}
                     input(r#type="submit"){"Vote"}
                 }
             },
