@@ -1,5 +1,3 @@
-use macros::string;
-use std::rc::Rc;
 use structs::{Role, User};
 use sycamore::prelude::*;
 
@@ -15,7 +13,7 @@ pub fn UserCards(users: Signal<Vec<User>>, show: Signal<bool>) -> View {
             let role = user.role();
             let value = user.value().clone();
             view! {
-                article(){
+                article(class=role.to_string()){
                     span(){
                         (name)
                     }

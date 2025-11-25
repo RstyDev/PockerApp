@@ -1,6 +1,11 @@
-use axum::Router;
-use axum::extract::ws::{Message, WebSocket};
-use axum::extract::{State, WebSocketUpgrade};
+use axum::{
+    Router,
+    extract::{
+        State, WebSocketUpgrade,
+        ws::{Message, WebSocket},
+    },
+};
+
 use axum::response::IntoResponse;
 use axum::routing::get;
 use dotenv::dotenv;
@@ -10,7 +15,7 @@ use std::collections::HashMap;
 use std::env;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use structs::{MessageBack, MessageText, Role, User};
+use structs::{EventType, MessageBack, MessageText, Role, User};
 use tokio::net::TcpListener;
 use tokio::sync::broadcast::Sender;
 use tokio::sync::{Mutex, broadcast};
@@ -20,6 +25,7 @@ use uuid::Uuid;
 #[derive(Debug, Clone)]
 struct Room {
     id: String,
+    show: bool,
     users: Arc<Mutex<HashMap<String, User>>>,
     tx: Sender<String>,
 }
@@ -110,7 +116,7 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
                         .lock()
                         .await
                         .iter()
-                        .map(|(k, v)| v)
+                        .map(|(_, v)| v)
                         .cloned()
                         .collect::<Vec<User>>();
                     if let Err(e) = send
@@ -130,46 +136,96 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
                     }
                     while let Ok(msg) = rx.recv().await {
                         dbg!(&msg);
-                        let user_lock;
-                        {
-                            user_lock = this_other.lock().await.clone();
-                        }
-                        if let Some(user_lock) = user_lock {
-                            let room_lock;
-                            {
-                                room_lock = arc_rooms
-                                    .lock()
-                                    .await
-                                    .iter()
-                                    .cloned()
-                                    .find(|room| room.id.eq(user_lock.room()));
-                            }
-                            if let Some(room) = room_lock {
-                                let users;
+                        match msg.as_ref() {
+                            "show" => {
+                                let user_lock;
                                 {
-                                    users = room
-                                        .users
-                                        .lock()
-                                        .await
-                                        .iter()
-                                        .map(|(_, v)| v)
-                                        .cloned()
-                                        .collect::<Vec<User>>();
+                                    user_lock = this_other.lock().await.clone();
                                 }
-                                if let Err(e) = send
-                                    .send(Message::Text(
-                                        serde_json::to_string(&MessageBack {
-                                            users,
-                                            show: false,
-                                            room: room.id.to_owned(),
-                                        })
-                                        .unwrap()
-                                        .into(),
-                                    ))
-                                    .await
+                                if let Some(user) = user_lock {
+                                    let room_lock;
+                                    {
+                                        room_lock = arc_rooms
+                                            .lock()
+                                            .await
+                                            .iter()
+                                            .cloned()
+                                            .find(|room| room.id.eq(user.room()));
+                                    }
+                                    if let Some(room) = room_lock {
+                                        let users;
+                                        {
+                                            users = room
+                                                .users
+                                                .lock()
+                                                .await
+                                                .iter()
+                                                .map(|(_, v)| v)
+                                                .cloned()
+                                                .collect::<Vec<User>>();
+                                        }
+                                        if let Err(e) = send
+                                            .send(Message::Text(
+                                                serde_json::to_string(&MessageBack {
+                                                    room: room.id,
+                                                    show: true,
+                                                    users,
+                                                })
+                                                .unwrap()
+                                                .into(),
+                                            ))
+                                            .await
+                                        {
+                                            dbg!(&e);
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                            "restart" => println!("restarting"),
+                            _ => {
+                                let user_lock;
                                 {
-                                    dbg!(&e);
-                                    break;
+                                    user_lock = this_other.lock().await.clone();
+                                }
+                                if let Some(user_lock) = user_lock {
+                                    let room_lock;
+                                    {
+                                        room_lock = arc_rooms
+                                            .lock()
+                                            .await
+                                            .iter()
+                                            .cloned()
+                                            .find(|room| room.id.eq(user_lock.room()));
+                                    }
+                                    if let Some(room) = room_lock {
+                                        let users;
+                                        {
+                                            users = room
+                                                .users
+                                                .lock()
+                                                .await
+                                                .iter()
+                                                .map(|(_, v)| v)
+                                                .cloned()
+                                                .collect::<Vec<User>>();
+                                        }
+                                        if let Err(e) = send
+                                            .send(Message::Text(
+                                                serde_json::to_string(&MessageBack {
+                                                    users,
+                                                    show: false,
+                                                    room: room.id.to_owned(),
+                                                })
+                                                .unwrap()
+                                                .into(),
+                                            ))
+                                            .await
+                                        {
+                                            dbg!(&e);
+                                            break;
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -192,38 +248,65 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
     let mut recv_task = task::spawn(async move {
         while let Some(Ok(Message::Text(msg))) = recv.next().await {
             match serde_json::from_str::<MessageText>(msg.as_str()) {
-                Ok(message) => {
-                    let mut rooms_lock = state.rooms.lock().await;
-                    let mut new_user = message.user;
-                    if new_user.role() == Role::Master {
-                        new_user.set_room(Uuid::new_v4().to_string());
-                    }
-                    match rooms_lock
-                        .iter()
-                        .cloned()
-                        .find(|room| room.id.eq(&new_user.room()))
-                    {
-                        Some(room) => {
-                            room.users
-                                .lock()
-                                .await
-                                .insert(new_user.name().to_owned(), new_user.to_owned());
+                Ok(message) => match message.message_type {
+                    EventType::SetUser => {
+                        let mut rooms_lock = state.rooms.lock().await;
+                        let mut new_user = message.user;
+                        if new_user.role() == Role::Master {
+                            new_user.set_room(Uuid::new_v4().to_string());
                         }
-                        None => {
-                            let new_room = Room {
-                                users: arc_mutex!(HashMap::from([(
-                                    new_user.name().to_owned(),
-                                    new_user.to_owned()
-                                )])),
-                                tx: broadcast::channel::<String>(20).0,
-                                id: new_user.room().to_owned(),
-                            };
-                            rooms_lock.push(new_room);
+                        match rooms_lock
+                            .iter()
+                            .cloned()
+                            .find(|room| room.id.eq(&new_user.room()))
+                        {
+                            Some(room) => {
+                                room.users
+                                    .lock()
+                                    .await
+                                    .insert(new_user.name().to_owned(), new_user.to_owned());
+                            }
+                            None => {
+                                let new_room = Room {
+                                    users: arc_mutex!(HashMap::from([(
+                                        new_user.name().to_owned(),
+                                        new_user.to_owned()
+                                    )])),
+                                    show: false,
+                                    tx: broadcast::channel::<String>(20).0,
+                                    id: new_user.room().to_owned(),
+                                };
+                                rooms_lock.push(new_room);
+                            }
                         }
-                    }
 
-                    this_user.lock().await.replace(new_user.to_owned());
-                }
+                        this_user.lock().await.replace(new_user.to_owned());
+                    }
+                    EventType::Show => {
+                        dbg!(&message);
+                        let mut rooms_lock = state.rooms.lock().await;
+                        let i = rooms_lock
+                            .iter()
+                            .enumerate()
+                            .find_map(|(i, r)| r.id.eq(message.user.room()).then_some(i));
+                        let room = rooms_lock.get_mut(i.unwrap()).unwrap();
+                        room.show = true;
+                        room.tx.send(string!("show")).unwrap();
+                        continue;
+                    }
+                    EventType::Restart => {
+                        dbg!(&message);
+                        let mut rooms_lock = state.rooms.lock().await;
+                        let i = rooms_lock
+                            .iter()
+                            .enumerate()
+                            .find_map(|(i, r)| r.id.eq(message.user.room()).then_some(i));
+                        let room = rooms_lock.get_mut(i.unwrap()).unwrap();
+                        room.show = false;
+                        room.tx.send(string!("restart")).unwrap();
+                        continue;
+                    }
+                },
                 Err(e) => {
                     dbg!(&e);
                 }

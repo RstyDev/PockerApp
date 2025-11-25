@@ -62,6 +62,13 @@ pub fn App() -> View {
                             match serde_json::from_str::<MessageBack>(&txt) {
                                 Ok(message) => {
                                     console_log!("Message: {:?}", message);
+                                    let mut current_user = this_user.get_clone();
+                                    let room_id = message.room.clone();
+                                    current_user = current_user.as_mut().map(|user| {
+                                        user.set_room(room_id);
+                                        user.to_owned()
+                                    });
+                                    this_user.set(current_user);
                                     show.set(message.show);
                                     room.set(message.room);
                                     users.set(message.users);
@@ -91,7 +98,7 @@ pub fn App() -> View {
                         console_dbg!(&user_role);
                         let user = User::new(user_role.get_clone().into(),user_name.get_clone().as_str(), None, room.get_clone());
                         this_user.set(Some(user.clone()));
-                        send.get_clone().unwrap().send(Message::Text(serde_json::to_string(&MessageText{ message_type: EventType::Start, user }).unwrap())).await.unwrap();
+                        send.get_clone().unwrap().send(Message::Text(serde_json::to_string(&MessageText{ message_type: EventType::SetUser, user }).unwrap())).await.unwrap();
                     });
 
                 }){

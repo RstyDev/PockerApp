@@ -16,10 +16,8 @@ pub struct MessageBack {
 
 #[derive(Copy, Clone, Deserialize, Serialize, Debug, Default)]
 pub enum EventType {
-    Start,
     #[default]
-    Login,
-    Select,
+    SetUser,
     Show,
     Restart,
 }

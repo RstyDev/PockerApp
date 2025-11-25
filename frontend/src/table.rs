@@ -9,7 +9,7 @@ use web_sys::SubmitEvent;
 
 #[component(inline_props)]
 pub fn Table(
-    mut user: User,
+    user: User,
     users: Signal<Vec<User>>,
     show: Signal<bool>,
     ws_sender: Signal<Option<UnboundedSender<Message>>>,
@@ -35,7 +35,7 @@ pub fn Table(
     view! {
         (match is_master{
             true => view!{
-                section(){
+                section(id="code_section"){
                     label(r#for="code"){"Connection Code"}
                     input(name="code",disabled=true,value=code2.to_string()){}
                     button(on:click = move |_| {
@@ -52,12 +52,15 @@ pub fn Table(
             },
             false => view!{},
         })
-        UserCards(users = users, show = show)
+        section(id="table"){
+            UserCards(users = users, show = show)
+        }
         (match is_master{
             true => view!{
                 button(on:click = move |_|{
                     let send = ws_sender.clone();
                     let user = user.clone();
+                    console_dbg!(&user);
                     spawn_local(async move {
                         send.get_clone().unwrap().send(Message::Text(serde_json::to_string(&MessageText{ message_type: EventType::Show, user }).unwrap())).await.unwrap();
                     });
@@ -71,8 +74,7 @@ pub fn Table(
                     spawn_local(async move {
                         let send = ws_sender.split().0;
                         user.set_value(number.get_clone().parse().ok());
-
-                        send.get_clone().unwrap().send(Message::Text(serde_json::to_string(&MessageText{ message_type: EventType::Start, user }).unwrap())).await.unwrap();
+                        send.get_clone().unwrap().send(Message::Text(serde_json::to_string(&MessageText{ message_type: EventType::SetUser, user }).unwrap())).await.unwrap();
 
                     });
                 }){
