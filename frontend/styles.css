@@ -47,9 +47,11 @@ main {
 }
 
 .Voter {
+    display: flex;
+    flex-direction: row;
     flex: 1;
     align-items: center;
-    justify-content: center;
+    justify-content: space-around;
 }
 
 .Master {
@@ -84,6 +86,13 @@ button {
     border-bottom: solid 1px #aaa;
 }
 
+#center {
+    height: 300px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-around;
+}
+
 input[type="number"] {
     appearance: textfield;
     -moz-appearance: textfield;
@@ -93,7 +102,10 @@ input[type="number"]::-webkit-outer-spin-button {
     -webkit-appearance: none;
     margin: 0;
 }
-
+.room_code {
+    min-width: 270px;
+    width: fit-content;
+}
 .card {
     border: solid 1px;
     width: 30px;
@@ -110,4 +122,27 @@ input[type="number"]::-webkit-outer-spin-button {
         text-align: center;
         background-color: #fff;
     }
+    &.master {
+        color: #000;
+        text-align: center;
+        background-color: #fff;
+        transform: scale(1.5);
+        align-self: center;
+    }
+}
+
+#center {
+    display: flex;
+    flex-direction: column;
+    & form {
+        display: flex;
+        flex-direction: row;
+        justify-content: space-around;
+    }
+}
+
+aside {
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
 }

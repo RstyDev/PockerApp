@@ -4,7 +4,7 @@ use futures::{SinkExt, StreamExt, channel::mpsc::UnboundedSender};
 use gloo_net::websocket::{Message, futures::WebSocket};
 use macros::string;
 use std::sync::LazyLock;
-use structs::{EventType, MessageBack, MessageText, Role, User};
+use structs::{EventType, MessageBack, MessageText, User};
 use sycamore::prelude::*;
 use sycamore::rt::console_error;
 use wasm_bindgen_futures::spawn_local;
@@ -24,10 +24,13 @@ pub fn App() -> View {
     let room = create_signal(String::new());
 
     let user_role = create_signal(string!("Master"));
-    create_memo(move || if users.with(|u| u.len()) == 0 {});
-    create_effect(move || {
-        if user_role.get_clone().eq("Master") {
-            room.set(String::new());
+    create_memo(move || {
+        if users.with(|u| u.len()) == 0 {
+            this_user.set_silent(None);
+            show.set_silent(false);
+            user_name.set_silent(String::new());
+            room.set_silent(String::new());
+            state.set(State::NotLogged);
         }
     });
     spawn_local({
@@ -88,13 +91,13 @@ pub fn App() -> View {
                         });
 
                     }){
-                        select(bind:value=user_role){
+                        select(id="select_role",bind:value=user_role){
                             option(value="Master", initial_selected = true){"Scrum Master"}
                             option(value="Voter"){"Dev/QA/BA"}
                         }
                         (match user_role.get_clone().as_ref(){
                             "Voter" => view!{
-                                input(r#type="text", placeholder="Room", bind:value=room){}
+                                input(class="room_code",r#type="text", placeholder="Room", bind:value=room){}
                             },
                             _ => view!{},
                         })
@@ -102,7 +105,7 @@ pub fn App() -> View {
                         input(r#type="submit"){"Submit"}
                     }
                 },
-                State::Logged => view!{ Table(user = this_user.get_clone().unwrap(),show = show, users = users, ws_sender = ws_sender) }
+                State::Logged => view!{ Table(user = this_user.get_clone().unwrap_or_default(),show = show, users = users, ws_sender = ws_sender) }
             })
         }
     }

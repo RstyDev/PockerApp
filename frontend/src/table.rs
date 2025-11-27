@@ -25,6 +25,17 @@ pub fn Table(
         let (left, right) = users.split_at(size / 2);
         (left.to_vec(), right.to_vec())
     });
+    let empty_room =
+        create_selector(move || split_users.with(|(a, b)| a.is_empty() && b.is_empty()));
+    let value: ReadSignal<f32> = create_selector(move || {
+        let size = users.with(|u| u.len() as f32) - 1.0;
+        let sum = users
+            .get_clone()
+            .into_iter()
+            .filter_map(|u| (u.role() == Role::Voter).then_some(u.value()).flatten())
+            .sum::<u8>() as f32;
+        sum / size
+    });
     let master = users
         .get_clone()
         .into_iter()
@@ -46,7 +57,7 @@ pub fn Table(
             true => view!{
                 section(id="code_section"){
                     label(r#for="code"){"Connection Code"}
-                    input(name="code",disabled=true,value=code2.to_string()){}
+                    input(name="code",class="room_code",disabled=true,value=code2.to_string()){}
                     button(on:click = move |_| {
                         let code = code.clone();
                         spawn_local(async move {
@@ -65,38 +76,49 @@ pub fn Table(
             aside(id="left"){
                 UserCards(users = split_users.get_clone().0.to_owned(), show = show)
             }
-            // section(id="table"){
-            // }
-            section(id="center"){
-                (match is_master{
-                    true => view!{
-                        button(on:click = move |_|{
-                            let send = ws_sender.clone();
-                            let user = user.clone();
-                            console_dbg!(&user);
-                            spawn_local(async move {
-                                send.get_clone().unwrap().send(Message::Text(serde_json::to_string(&MessageText{ message_type: EventType::Show, user }).unwrap())).await.unwrap();
-                            });
-                        }){"Show cards"}
-                    },
-                    false => view!{
-                        form(on:submit = move |ev:SubmitEvent| {
-                            ev.prevent_default();
-                            let ws_sender = ws_sender.clone();
-                            let mut user = user.clone();
-                            spawn_local(async move {
-                                let send = ws_sender.split().0;
-                                user.set_value(number.get_clone().parse().ok());
-                                send.get_clone().unwrap().send(Message::Text(serde_json::to_string(&MessageText{ message_type: EventType::SetUser, user }).unwrap())).await.unwrap();
-
-                            });
-                        }){
-                            input(r#type="number",bind:value=number){}
-                            input(r#type="submit"){"Vote"}
+            (match empty_room.get() {
+                false => {
+                    let send = ws_sender.clone();
+                    let user = user.clone();
+                    view!{
+                        section(id="center"){
+                            (match is_master{
+                                true => view!{
+                                    button(on:click = move |_|{
+                                        let send = send.to_owned();
+                                        let user = user.to_owned();
+                                        console_dbg!(&user);
+                                        spawn_local(async move {
+                                            send.get_clone().unwrap().send(Message::Text(serde_json::to_string(&MessageText{ message_type: EventType::Show, user }).unwrap())).await.unwrap();
+                                        });
+                                    }){"Show cards"}
+                                },
+                                false => view!{
+                                    form(on:submit = move |ev:SubmitEvent| {
+                                        ev.prevent_default();
+                                        let ws_sender = ws_sender.clone();
+                                        let mut user = user.clone();
+                                        spawn_local(async move {
+                                            let send = ws_sender.split().0;
+                                            user.set_value(number.get_clone().parse().ok());
+                                            send.get_clone().unwrap().send(Message::Text(serde_json::to_string(&MessageText{ message_type: EventType::SetUser, user }).unwrap())).await.unwrap();
+                                        });
+                                    }){
+                                        input(r#type="number",bind:value=number){}
+                                        input(r#type="submit"){"Vote"}
+                                    }
+                                },
+                            })
+                            div(class="card master") {
+                                p(){
+                                    (show.get().then(||value.get().to_string()).unwrap_or_default())
+                                }
+                            }
                         }
-                    },
-                })
-            }
+                    }
+                },
+                true => view!{},
+            })
             aside(id="right"){
                 UserCards(users = split_users.get_clone().1.to_owned(), show = show)
             }
