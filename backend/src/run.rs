@@ -337,7 +337,12 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
                 .find(|room| room.id.eq(user.room()))
             {
                 let mut users_lock = room.users.lock().await;
-                users_lock.remove(user.name());
+                match user.role() {
+                    Role::Master => users_lock.clear(),
+                    Role::Voter => {
+                        users_lock.remove(user.name());
+                    }
+                }
                 if let Err(e) = room.tx.send(
                     serde_json::to_string(
                         &users_lock

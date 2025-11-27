@@ -2,11 +2,11 @@ use structs::{Role, User};
 use sycamore::prelude::*;
 
 #[component(inline_props)]
-pub fn UserCards(users: Signal<Vec<User>>, show: Signal<bool>) -> View {
+pub fn UserCards(mut users: Vec<User>, show: Signal<bool>) -> View {
     let show = create_selector(move || show.get());
-    let mut users_vec = users.get_clone();
-    users_vec.sort_by(|u, o| u.name().cmp(o.name()));
-    let views = users_vec
+
+    users.sort_by(|u, o| u.name().cmp(o.name()));
+    let views = users
         .into_iter()
         .map(|user| {
             let name = user.name().to_string();

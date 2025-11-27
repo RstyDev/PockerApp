@@ -15,7 +15,16 @@ pub fn Table(
     ws_sender: Signal<Option<UnboundedSender<Message>>>,
 ) -> View {
     let is_master = user.role() == Role::Master;
-
+    let split_users = create_selector(move || {
+        let users = users
+            .get_clone()
+            .into_iter()
+            .filter(|u| u.role() == Role::Voter)
+            .collect::<Vec<User>>();
+        let size = users.len();
+        let (left, right) = users.split_at(size / 2);
+        (left.to_vec(), right.to_vec())
+    });
     let master = users
         .get_clone()
         .into_iter()
@@ -52,36 +61,45 @@ pub fn Table(
             },
             false => view!{},
         })
-        section(id="table"){
-            UserCards(users = users, show = show)
-        }
-        (match is_master{
-            true => view!{
-                button(on:click = move |_|{
-                    let send = ws_sender.clone();
-                    let user = user.clone();
-                    console_dbg!(&user);
-                    spawn_local(async move {
-                        send.get_clone().unwrap().send(Message::Text(serde_json::to_string(&MessageText{ message_type: EventType::Show, user }).unwrap())).await.unwrap();
-                    });
-                }){"Show cards"}
-            },
-            false => view!{
-                form(on:submit = move |ev:SubmitEvent| {
-                    ev.prevent_default();
-                    let ws_sender = ws_sender.clone();
-                    let mut user = user.clone();
-                    spawn_local(async move {
-                        let send = ws_sender.split().0;
-                        user.set_value(number.get_clone().parse().ok());
-                        send.get_clone().unwrap().send(Message::Text(serde_json::to_string(&MessageText{ message_type: EventType::SetUser, user }).unwrap())).await.unwrap();
+        main(){
+            aside(id="left"){
+                UserCards(users = split_users.get_clone().0.to_owned(), show = show)
+            }
+            // section(id="table"){
+            // }
+            section(id="center"){
+                (match is_master{
+                    true => view!{
+                        button(on:click = move |_|{
+                            let send = ws_sender.clone();
+                            let user = user.clone();
+                            console_dbg!(&user);
+                            spawn_local(async move {
+                                send.get_clone().unwrap().send(Message::Text(serde_json::to_string(&MessageText{ message_type: EventType::Show, user }).unwrap())).await.unwrap();
+                            });
+                        }){"Show cards"}
+                    },
+                    false => view!{
+                        form(on:submit = move |ev:SubmitEvent| {
+                            ev.prevent_default();
+                            let ws_sender = ws_sender.clone();
+                            let mut user = user.clone();
+                            spawn_local(async move {
+                                let send = ws_sender.split().0;
+                                user.set_value(number.get_clone().parse().ok());
+                                send.get_clone().unwrap().send(Message::Text(serde_json::to_string(&MessageText{ message_type: EventType::SetUser, user }).unwrap())).await.unwrap();
 
-                    });
-                }){
-                    input(r#type="number",bind:value=number){}
-                    input(r#type="submit"){"Vote"}
-                }
-            },
-        })
+                            });
+                        }){
+                            input(r#type="number",bind:value=number){}
+                            input(r#type="submit"){"Vote"}
+                        }
+                    },
+                })
+            }
+            aside(id="right"){
+                UserCards(users = split_users.get_clone().1.to_owned(), show = show)
+            }
+        }
     }
 }

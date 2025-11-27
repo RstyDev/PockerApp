@@ -23,23 +23,8 @@ pub fn App() -> View {
     let user_name = create_signal(String::new());
     let room = create_signal(String::new());
 
-    let master_is_there = create_selector(move || {
-        users
-            .get_clone()
-            .into_iter()
-            .any(|user| user.role() == Role::Master)
-    });
-    let user_role = create_signal(match master_is_there.get() {
-        true => string!("Voter"),
-        false => string!("Master"),
-    });
-    create_memo(move || {
-        match master_is_there.get() {
-            true => user_role.set(string!("Voter")),
-            false => user_role.set(string!("Master")),
-        }
-        console_log!("Messages: {:?}", users.get_clone());
-    });
+    let user_role = create_signal(string!("Master"));
+    create_memo(move || if users.with(|u| u.len()) == 0 {});
     create_effect(move || {
         if user_role.get_clone().eq("Master") {
             room.set(String::new());
@@ -88,42 +73,37 @@ pub fn App() -> View {
         }
     });
     view! {
-        (match state.get_clone(){
-            State::NotLogged => view!{
-                form(on:submit=move |ev:SubmitEvent|{
-                    ev.prevent_default();
-                    console_log!("Submitted");
-                    spawn_local(async move {
-                        let send = ws_sender.split().0;
-                        console_dbg!(&user_role);
-                        let user = User::new(user_role.get_clone().into(),user_name.get_clone().as_str(), None, room.get_clone());
-                        this_user.set(Some(user.clone()));
-                        send.get_clone().unwrap().send(Message::Text(serde_json::to_string(&MessageText{ message_type: EventType::SetUser, user }).unwrap())).await.unwrap();
-                    });
+        section(id="board"){
+            (match state.get_clone(){
+                State::NotLogged => view!{
+                    form(on:submit=move |ev:SubmitEvent|{
+                        ev.prevent_default();
+                        console_log!("Submitted");
+                        spawn_local(async move {
+                            let send = ws_sender.split().0;
+                            console_dbg!(&user_role);
+                            let user = User::new(user_role.get_clone().into(),user_name.get_clone().as_str(), None, room.get_clone());
+                            this_user.set(Some(user.clone()));
+                            send.get_clone().unwrap().send(Message::Text(serde_json::to_string(&MessageText{ message_type: EventType::SetUser, user }).unwrap())).await.unwrap();
+                        });
 
-                }){
-                    select(bind:value=user_role, disabled = master_is_there.get()){
-                        (match master_is_there.get(){
-                            true=>view!{
-                                option(value="Voter", initial_selected = true){"Dev/QA/BA"}
+                    }){
+                        select(bind:value=user_role){
+                            option(value="Master", initial_selected = true){"Scrum Master"}
+                            option(value="Voter"){"Dev/QA/BA"}
+                        }
+                        (match user_role.get_clone().as_ref(){
+                            "Voter" => view!{
+                                input(r#type="text", placeholder="Room", bind:value=room){}
                             },
-                            false=>view!{
-                                option(value="Master", initial_selected = true){"Scrum Master"}
-                                option(value="Voter"){"Dev/QA/BA"}
-                            },
+                            _ => view!{},
                         })
+                        input(r#type="text", placeholder="Your Name", bind:value=user_name){}
+                        input(r#type="submit"){"Submit"}
                     }
-                    (match user_role.get_clone().as_ref(){
-                        "Voter" => view!{
-                            input(r#type="text", placeholder="Room", bind:value=room){}
-                        },
-                        _ => view!{},
-                    })
-                    input(r#type="text", placeholder="Your Name", bind:value=user_name){}
-                    input(r#type="submit"){"Submit"}
-                }
-            },
-            State::Logged => view!{ Table(user = this_user.get_clone().unwrap(),show = show, users = users, ws_sender = ws_sender) }
-        })
+                },
+                State::Logged => view!{ Table(user = this_user.get_clone().unwrap(),show = show, users = users, ws_sender = ws_sender) }
+            })
+        }
     }
 }

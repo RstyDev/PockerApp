@@ -1,10 +1,41 @@
+:root {
+    --bg: #0f1724;
+    --card: #f8fafc;
+    --accent: #1f7a8c;
+    --muted: #94a3b8;
+    --table: #0b1220;
+}
 body {
-    background-color: #333;
-    color: #aaa;
+    background: linear-gradient(180deg, #071021 0%, #0b1220 100%);
+    color: var(--card);
     display: flex;
-    flex-direction: column;
-    align-content: center;
-    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+#board {
+    width: 100%;
+    height: 100%;
+    background:
+        radial-gradient(
+            circle at 10% 10%,
+            rgba(255, 255, 255, 0.02),
+            transparent 10%
+        ),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 50%);
+    border-radius: 16px;
+    padding: 18px;
+    box-shadow: 0 10px 30px rgba(2, 6, 23, 0.7);
+}
+main {
+    background: linear-gradient(180deg, #082033, #071627);
+    border-radius: 12px;
+    height: 100%;
+    padding: 22px;
+    display: grid;
+    grid-template-columns: 120px 1fr 120px;
+    gap: 16px;
+    align-items: center;
 }
 #table {
     border: solid;
@@ -13,6 +44,17 @@ body {
     height: 500px;
     display: flex;
     flex-direction: column;
+}
+
+.Voter {
+    flex: 1;
+    align-items: center;
+    justify-content: center;
+}
+
+.Master {
+    margin-top: auto;
+    align-self: center;
 }
 
 #login {
