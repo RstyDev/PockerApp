@@ -58,7 +58,7 @@ pub fn Table(
                 section(id="code_section"){
                     label(r#for="code"){"Connection Code"}
                     input(name="code",class="room_code",disabled=true,value=code2.to_string()){}
-                    button(on:click = move |_| {
+                    button(r#type="button",on:click = move |_| {
                         let code = code.clone();
                         spawn_local(async move {
                             match copy_to_clipboard(code.as_str()).await {

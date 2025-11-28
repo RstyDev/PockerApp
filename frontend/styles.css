@@ -15,7 +15,7 @@ body {
 }
 #board {
     width: 100%;
-    height: 100%;
+    height: 80dvh;
     background:
         radial-gradient(
             circle at 10% 10%,
@@ -138,6 +138,12 @@ input[type="number"]::-webkit-outer-spin-button {
         display: flex;
         flex-direction: row;
         justify-content: space-around;
+    }
+    & button {
+        width: 200px;
+        height: 70px;
+        font-size: 20px;
+        align-self: center;
     }
 }
 

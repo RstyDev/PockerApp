@@ -24,7 +24,9 @@ pub fn App() -> View {
     let room = create_signal(String::new());
 
     let user_role = create_signal(string!("Master"));
+    create_memo(move || console_log!("Status: {:#?}", state.get_clone()));
     create_memo(move || {
+        users.track();
         if users.with(|u| u.len()) == 0 {
             this_user.set_silent(None);
             show.set_silent(false);
@@ -59,8 +61,13 @@ pub fn App() -> View {
                                     this_user.set(current_user);
                                     show.set(message.show);
                                     room.set(message.room);
+                                    let size = message.users.len();
                                     users.set(message.users);
-                                    state.set(State::Logged);
+                                    state.set(
+                                        (size > 0)
+                                            .then_some(State::Logged)
+                                            .unwrap_or(State::NotLogged),
+                                    );
                                 }
                                 Err(e) => console_error!("Error: {}", e),
                             }
