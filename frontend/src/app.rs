@@ -9,6 +9,8 @@ use sycamore::prelude::*;
 use sycamore::rt::console_error;
 use wasm_bindgen_futures::spawn_local;
 use web_sys::SubmitEvent;
+use gloo_timers::future::sleep;
+use std::time::Duration;
 
 pub static HOST: LazyLock<String> = LazyLock::new(|| std::env!("BACKEND").to_string());
 
@@ -20,7 +22,18 @@ pub fn App() -> View {
     let master_disabled =
         create_selector(move || dev_name.with(|v| v.len()) > 0 || room_code.with(|v| v.len()) > 0);
     let dev_disabled = create_selector(move || master_name.with(|v| v.len()) > 0);
-
+    let error = create_signal(string!(""));
+    let show_error = create_signal(false);
+    create_effect(move || {
+        let err = show_error.get();
+        spawn_local(async move {
+            if err {
+                sleep(Duration::from_millis(2000)).await;
+                show_error.set(false);
+                // console_dbg!("Copied to false now");
+            }
+        });
+    });
     let users = create_signal(Vec::<User>::new());
     let this_user = create_signal(None::<User>);
     let show = create_signal(false);
@@ -100,14 +113,20 @@ pub fn App() -> View {
                             let send = ws_sender.split().0;
                             console_dbg!(&user_role);
                             let user_option = match (master_name.get_clone().as_ref(),dev_name.get_clone().as_ref(),room_code.get_clone().as_ref()){
-                                ("","","") => Err(""),
-                                ("",dev_name,room) => Ok(User::new(Role::Voter, dev_name, None, room)),
-                                (master_name,"",room) => Ok(User::new(Role::Master, master_name, None, room)),
-                                (_,_,_) => Err("")
+                                ("","","") => Err(string!("It is required to select either a Scrum Master name or a Developer name")),
+                                ("",dev_name,"") if dev_name.len() > 0 => Err(string!("If you are a Developer, ask the Scrum Master for the room code")),
+                                ("","",room) if room.len() > 0 => Err(string!("Name input is required")),
+                                ("",dev_name,room) if dev_name.len() > 0 && room.len() > 35 => Ok(User::new(Role::Voter, dev_name, None, room)),
+                                (master_name,"",room) if master_name.len() > 0 => Ok(User::new(Role::Master, master_name, None, room)),
+                                (_,_,_) => Err(string!("Unexpected Error"))
                             };
                             this_user.set(user_option.clone().ok());
-                            if let Ok(user)=user_option {
-                                send.get_clone().unwrap().send(Message::Text(serde_json::to_string(&MessageText{ message_type: EventType::SetUser, user }).unwrap())).await.unwrap();
+                            match user_option {
+                                Ok(user) => send.get_clone().unwrap().send(Message::Text(serde_json::to_string(&MessageText{ message_type: EventType::SetUser, user }).unwrap())).await.unwrap(),
+                                Err(err) => {
+                                    error.set(err);
+                                    show_error.set(true);
+                                },
                             }
                         });
 
@@ -118,6 +137,11 @@ pub fn App() -> View {
                         input(id="voter_name",placeholder="Your name",bind:value=dev_name,disabled=dev_disabled.get()){}
                         input(class="room_code",bind:value=room_code,placeholder="Room code from Scrum Master",disabled=dev_disabled.get()){}
                         input(r#type="submit"){"Submit"}
+                    }
+                    article(class=format!("error {}",show_error.get())){
+                        p(){
+                            (format!("🚫 {}",error.get_clone()))
+                        }
                     }
                 },
                 State::Logged => view!{ Table(user = this_user.get_clone().unwrap_or_default(),show = show, users = users, ws_sender = ws_sender) }

@@ -20,7 +20,7 @@ pub fn Table(
 ) -> View {
     let is_master = user.role() == Role::Master;
     let copied = create_signal(false);
-    create_memo(move || {
+    create_effect(move || {
         let cop = copied.get();
         spawn_local(async move {
             if cop {
@@ -55,11 +55,12 @@ pub fn Table(
         .get_clone()
         .into_iter()
         .find(|user| user.role() == Role::Master);
+    let master_name = Rc::new(master.as_ref().map(|m|m.name().to_owned()).unwrap_or_default());
     let number = create_signal(String::new());
     let code = Rc::new(
         master
             .as_ref()
-            .map(|m| m.room().to_string())
+            .map(|m| m.room().to_owned())
             .unwrap_or_default(),
     );
     let code2 = code.clone();
@@ -78,7 +79,7 @@ pub fn Table(
                             if !copied.get(){
                                 let code = code.clone();
                                 spawn_local(async move {
-                                    match copy_to_clipboard(code.as_str()).await {
+                                    match copy_to_clipboard(&code).await {
                                         Ok(_) => {
                                             console_log!("✅ Copied to clipboard");
                                             copied.set(true);
@@ -100,11 +101,16 @@ pub fn Table(
             false => view!{},
         })
         main(){
+
             (match empty_room.get() {
                 false => {
+                    let master_name = master_name.clone();
                     let send = ws_sender.clone();
                     let user = user.clone();
                     view!{
+                        section(id="scrum_master_name"){
+                            p(){ (format!("Scrum Master: {}",master_name)) }
+                        }
                         aside(id="left"){
                             UserCards(users = split_users.get_clone().0.to_owned(), show = show, side = Side::Left)
                         }
