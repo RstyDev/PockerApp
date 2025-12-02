@@ -4,4 +4,4 @@ target = "./index.html"
 [serve]
 addresses = ["0.0.0.0"]
 # port = 1400
-port = 1460
+port = 1480

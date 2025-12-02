@@ -182,7 +182,48 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
                                     }
                                 }
                             }
-                            "restart" => println!("restarting"),
+                            "restart" => {
+                                let user_lock;
+                                {
+                                    user_lock = this_other.lock().await.clone();
+                                }
+                                if let Some(user) = user_lock {
+                                    let room_lock;
+                                    {
+                                        room_lock = arc_rooms
+                                            .lock()
+                                            .await
+                                            .iter()
+                                            .cloned()
+                                            .find(|room| room.id.eq(user.room()));
+                                    }
+                                    if let Some(room) = room_lock {
+                                        let mut users = vec![];
+                                        {
+                                            let mut lock = room.users.lock().await;
+                                            for (_, v) in lock.iter_mut() {
+                                                v.set_value(None);
+                                                users.push(v.clone())
+                                            }
+                                        }
+                                        if let Err(e) = send
+                                            .send(Message::Text(
+                                                serde_json::to_string(&MessageBack {
+                                                    room: room.id,
+                                                    show: false,
+                                                    users,
+                                                })
+                                                .unwrap()
+                                                .into(),
+                                            ))
+                                            .await
+                                        {
+                                            dbg!(&e);
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
                             _ => {
                                 let user_lock;
                                 {

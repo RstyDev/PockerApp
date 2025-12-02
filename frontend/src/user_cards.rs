@@ -1,8 +1,13 @@
 use structs::{Role, User};
 use sycamore::prelude::*;
-
+#[derive(Clone, Copy, Debug, Default)]
+pub enum Side {
+    #[default]
+    Left,
+    Right,
+}
 #[component(inline_props)]
-pub fn UserCards(mut users: Vec<User>, show: Signal<bool>) -> View {
+pub fn UserCards(mut users: Vec<User>, show: Signal<bool>, side: Side) -> View {
     let show = create_selector(move || show.get());
 
     users.sort_by(|u, o| u.name().cmp(o.name()));
@@ -10,13 +15,19 @@ pub fn UserCards(mut users: Vec<User>, show: Signal<bool>) -> View {
         .into_iter()
         .map(|user| {
             let name = user.name().to_string();
+            let name2 = name.clone();
             let role = user.role();
             let value = user.value().clone();
             view! {
                 article(class=role.to_string()){
-                    span(){
-                        (name)
-                    }
+                    (match side{
+                        Side::Left => view!{
+                            span(){
+                                (name)
+                            }
+                        },
+                        Side::Right => view!{}
+                    })
                     (match role {
                         Role::Master => view!{},
                         Role::Voter => {
@@ -34,6 +45,14 @@ pub fn UserCards(mut users: Vec<User>, show: Signal<bool>) -> View {
                                 }
                             }
                         },
+                    })
+                    (match side {
+                        Side::Right => view!{
+                            span(){
+                                (name2)
+                            }
+                        },
+                        Side::Left => view!{}
                     })
                 }
             }

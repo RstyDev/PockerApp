@@ -9,6 +9,7 @@ dotenv = { workspace = true }
 futures = { version = "0.3" }
 futures-util = { version = "0.3" }
 gloo-net = { version = "0.6.0", features = ["websocket"] }
+gloo-timers = { version = "0.3.0", features = ["futures"] }
 log = "0.4.28"
 macros = { path = "../macros" }
 serde = { workspace = true }
@@ -23,12 +24,12 @@ uuid = { workspace = true }
 wasm-bindgen = { version = "0.2.100" }
 wasm-bindgen-futures = { version = "0.4.50" }
 web-sys = { version = "0.3.77", features = [
+  "Clipboard",
   "Document",
   "HtmlDocument",
-  "WebSocket",
-  "Window",
   "Navigator",
-  "Clipboard"
+  "WebSocket",
+  "Window"
 ] }
 
 [features]
