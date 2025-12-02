@@ -161,6 +161,13 @@ input[type="number"]::-webkit-outer-spin-button {
     min-width: 270px;
     width: fit-content;
 }
+
+input:disabled {
+    background: #666; /* Ejemplo: fondo gris */
+    color: #eee; /* Texto más tenue */
+    cursor: not-allowed; /* Cursor indicando que no se puede usar */
+}
+
 #user_vote {
     padding: 0 15px;
 }

@@ -4,7 +4,7 @@ use futures::{SinkExt, StreamExt, channel::mpsc::UnboundedSender};
 use gloo_net::websocket::{Message, futures::WebSocket};
 use macros::string;
 use std::sync::LazyLock;
-use structs::{EventType, MessageBack, MessageText, User};
+use structs::{EventType, MessageBack, MessageText, Role, User};
 use sycamore::prelude::*;
 use sycamore::rt::console_error;
 use wasm_bindgen_futures::spawn_local;
@@ -14,6 +14,13 @@ pub static HOST: LazyLock<String> = LazyLock::new(|| std::env!("BACKEND").to_str
 
 #[component]
 pub fn App() -> View {
+    let master_name = create_signal(String::new());
+    let dev_name = create_signal(String::new());
+    let room_code = create_signal(String::new());
+    let master_disabled =
+        create_selector(move || dev_name.with(|v| v.len()) > 0 || room_code.with(|v| v.len()) > 0);
+    let dev_disabled = create_selector(move || master_name.with(|v| v.len()) > 0);
+
     let users = create_signal(Vec::<User>::new());
     let this_user = create_signal(None::<User>);
     let show = create_signal(false);
@@ -92,23 +99,24 @@ pub fn App() -> View {
                         spawn_local(async move {
                             let send = ws_sender.split().0;
                             console_dbg!(&user_role);
-                            let user = User::new(user_role.get_clone().into(),user_name.get_clone().as_str(), None, room.get_clone());
-                            this_user.set(Some(user.clone()));
-                            send.get_clone().unwrap().send(Message::Text(serde_json::to_string(&MessageText{ message_type: EventType::SetUser, user }).unwrap())).await.unwrap();
+                            let user_option = match (master_name.get_clone().as_ref(),dev_name.get_clone().as_ref(),room_code.get_clone().as_ref()){
+                                ("","","") => Err(""),
+                                ("",dev_name,room) => Ok(User::new(Role::Voter, dev_name, None, room)),
+                                (master_name,"",room) => Ok(User::new(Role::Master, master_name, None, room)),
+                                (_,_,_) => Err("")
+                            };
+                            this_user.set(user_option.clone().ok());
+                            if let Ok(user)=user_option {
+                                send.get_clone().unwrap().send(Message::Text(serde_json::to_string(&MessageText{ message_type: EventType::SetUser, user }).unwrap())).await.unwrap();
+                            }
                         });
 
                     }){
-                        select(id="select_role",bind:value=user_role){
-                            option(value="Master", initial_selected = true){"Scrum Master"}
-                            option(value="Voter"){"Dev/QA/BA"}
-                        }
-                        (match user_role.get_clone().as_ref(){
-                            "Voter" => view!{
-                                input(class="room_code",r#type="text", placeholder="Room", bind:value=room){}
-                            },
-                            _ => view!{},
-                        })
-                        input(r#type="text", placeholder="Your Name", bind:value=user_name){}
+                        label(r#for="master_name"){"Scrum Master"}
+                        input(id= "master_name",placeholder="Your name",bind:value=master_name,disabled=master_disabled.get()){}
+                        label(r#for="voter_name"){"Developer/QA/BA"}
+                        input(id="voter_name",placeholder="Your name",bind:value=dev_name,disabled=dev_disabled.get()){}
+                        input(class="room_code",bind:value=room_code,placeholder="Room code from Scrum Master",disabled=dev_disabled.get()){}
                         input(r#type="submit"){"Submit"}
                     }
                 },

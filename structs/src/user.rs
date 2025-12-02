@@ -16,12 +16,12 @@ impl PartialEq for User {
 }
 
 impl User {
-    pub fn new(role: Role, name: &str, value: Option<u8>, room: String) -> User {
+    pub fn new(role: Role, name: &str, value: Option<u8>, room: &str) -> User {
         User {
             role,
             name: string!(name),
             value,
-            room,
+            room: string!(room),
         }
     }
 
