@@ -2,15 +2,15 @@ use crate::front_structs::State;
 use crate::table::Table;
 use futures::{SinkExt, StreamExt, channel::mpsc::UnboundedSender};
 use gloo_net::websocket::{Message, futures::WebSocket};
+use gloo_timers::future::sleep;
 use macros::string;
 use std::sync::LazyLock;
+use std::time::Duration;
 use structs::{EventType, MessageBack, MessageText, Role, User};
 use sycamore::prelude::*;
 use sycamore::rt::console_error;
 use wasm_bindgen_futures::spawn_local;
 use web_sys::SubmitEvent;
-use gloo_timers::future::sleep;
-use std::time::Duration;
 
 pub static HOST: LazyLock<String> = LazyLock::new(|| std::env!("BACKEND").to_string());
 
@@ -106,7 +106,7 @@ pub fn App() -> View {
         section(id="board"){
             (match state.get_clone(){
                 State::NotLogged => view!{
-                    form(on:submit=move |ev:SubmitEvent|{
+                    form(id="login_form",on:submit=move |ev:SubmitEvent|{
                         ev.prevent_default();
                         console_log!("Submitted");
                         spawn_local(async move {
@@ -131,12 +131,18 @@ pub fn App() -> View {
                         });
 
                     }){
-                        label(r#for="master_name"){"Scrum Master"}
-                        input(id= "master_name",placeholder="Your name",bind:value=master_name,disabled=master_disabled.get()){}
-                        label(r#for="voter_name"){"Developer/QA/BA"}
-                        input(id="voter_name",placeholder="Your name",bind:value=dev_name,disabled=dev_disabled.get()){}
-                        input(class="room_code",bind:value=room_code,placeholder="Room code from Scrum Master",disabled=dev_disabled.get()){}
-                        input(r#type="submit"){"Submit"}
+                        span(id="you_are"){"You are"}
+                        div(id="master_form"){
+                            label(r#for="master_name"){"Scrum Master"}
+                            input(id= "master_name",placeholder="Your name",bind:value=master_name,disabled=master_disabled.get()){}
+                        }
+                        span(id="or"){"or"}
+                        div(id="dev_form"){
+                            label(r#for="voter_name"){"Developer/QA/BA"}
+                            input(id="voter_name",placeholder="Your name",bind:value=dev_name,disabled=dev_disabled.get()){}
+                            input(class="room_code",bind:value=room_code,placeholder="Room code from Scrum Master",disabled=dev_disabled.get()){}
+                        }
+                        input(id="login_submit",r#type="submit"){"Submit"}
                     }
                     article(class=format!("error {}",show_error.get())){
                         p(){

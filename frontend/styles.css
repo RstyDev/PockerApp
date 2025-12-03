@@ -134,6 +134,47 @@ button {
     display: grid;
     grid-template-columns: 70% 30%;
 }
+#login_form {
+    display: grid;
+    grid-template-columns: auto auto auto;
+    grid-template-rows: auto auto auto;
+    justify-content: space-evenly;
+}
+#you_are {
+    grid-column: 1;
+    grid-row: 2;
+    font-size: 30px;
+}
+#master_form {
+    grid-column: 2;
+    grid-row: 1;
+    border-top: solid 1px gray;
+    border-right: solid 1px gray;
+    border-radius: 30px;
+    border-left: solid 1px gray;
+    padding: 40px 0px;
+}
+#or {
+    grid-column: 2;
+    grid-row: 2;
+    font-size: 30px;
+}
+#dev_form {
+    grid-column: 2;
+    grid-row: 3;
+    border-bottom: solid 1px gray;
+    border-right: solid 1px gray;
+    border-radius: 30px;
+    border-left: solid 1px gray;
+    padding: 40px 0px;
+}
+#login_submit {
+    grid-column: 3;
+    grid-row: 2;
+    transform: scale(1.5);
+    padding: 5px 10px;
+    width: fit-content;
+}
 .copied {
     opacity: 1;
 }
@@ -208,6 +249,7 @@ input:disabled {
     }
     &.master {
         color: #000;
+        border: solid 1px #000;
         text-align: center;
         background-color: #fff;
         transform: scale(2);

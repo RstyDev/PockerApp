@@ -5,7 +5,7 @@ use crate::{
 use futures::{SinkExt, channel::mpsc::UnboundedSender};
 use gloo_net::websocket::Message;
 use gloo_timers::future::sleep;
-use std::{rc::Rc, time::Duration};
+use std::{collections::HashMap, rc::Rc, time::Duration};
 use structs::{EventType, MessageText, Role, User};
 use sycamore::prelude::*;
 use wasm_bindgen_futures::spawn_local;
@@ -42,20 +42,37 @@ pub fn Table(
     });
     let empty_room =
         create_selector(move || split_users.with(|(a, b)| a.is_empty() && b.is_empty()));
-    let value: ReadSignal<f32> = create_selector(move || {
-        let size = users.with(|u| u.into_iter().filter(|us| us.value().is_some()).count() as f32);
-        let sum = users
+    let value: ReadSignal<u8> = create_selector(move || {
+        let numbers = users
             .get_clone()
             .into_iter()
-            .filter_map(|u| (u.role() == Role::Voter).then_some(u.value()).flatten())
-            .sum::<u8>() as f32;
-        sum / size
+            .filter_map(|u| u.value())
+            .collect::<Vec<_>>();
+        let mut map: HashMap<u8, u8> = HashMap::new();
+        for num in numbers {
+            let current = map.get(&num);
+            map.insert(num, current.cloned().unwrap_or(0) + 1);
+        }
+        let mut max_k = 0;
+        let mut max_v = 0;
+        for (k, v) in map.into_iter() {
+            if v > max_v {
+                max_v = v;
+                max_k = k
+            }
+        }
+        max_k
     });
     let master = users
         .get_clone()
         .into_iter()
         .find(|user| user.role() == Role::Master);
-    let master_name = Rc::new(master.as_ref().map(|m|m.name().to_owned()).unwrap_or_default());
+    let master_name = Rc::new(
+        master
+            .as_ref()
+            .map(|m| m.name().to_owned())
+            .unwrap_or_default(),
+    );
     let number = create_signal(String::new());
     let code = Rc::new(
         master
