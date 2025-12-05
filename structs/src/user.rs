@@ -1,7 +1,9 @@
+use std::fmt::Display;
+
 use macros::string;
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Deserialize, Serialize, Debug, Default, Eq, Hash)]
+#[derive(Clone, Deserialize, Serialize, Debug, Default, Eq)]
 pub struct User {
     role: Role,
     name: String,
@@ -65,11 +67,23 @@ pub enum Role {
     Voter,
 }
 
-impl ToString for Role {
-    fn to_string(&self) -> String {
+impl TryFrom<String> for Role {
+    type Error = &'static str;
+
+    fn try_from(val: String) -> Result<Self, Self::Error> {
+        match val.as_str() {
+            "Master" => Ok(Role::Master),
+            "Voter" => Ok(Role::Voter),
+            &_ => Err("Invalid input for Role"),
+        }
+    }
+}
+
+impl Display for Role {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Role::Master => string!("Master"),
-            Role::Voter => string!("Voter"),
+            Role::Master => write!(f, "Master"),
+            Role::Voter => write!(f, "Voter"),
         }
     }
 }
@@ -83,12 +97,12 @@ impl ToString for Role {
 //     }
 // }
 
-impl Into<Role> for String {
-    fn into(self) -> Role {
-        match self.as_str() {
-            "Master" => Role::Master,
-            "Voter" => Role::Voter,
-            _ => unreachable!(),
-        }
-    }
-}
+// impl Into<Role> for String {
+//     fn into(self) -> Role {
+//         match self.as_str() {
+//             "Master" => Role::Master,
+//             "Voter" => Role::Voter,
+//             _ => unreachable!(),
+//         }
+//     }
+// }

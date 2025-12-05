@@ -1,3 +1,5 @@
+#![deny(clippy::unwrap_used)]
+#![deny(clippy::expect_used)]
 extern crate futures;
 extern crate gloo_net;
 extern crate sycamore;

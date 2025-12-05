@@ -1,4 +1,5 @@
 use crate::front_structs::State;
+use crate::libs::send_message;
 use crate::table::Table;
 use futures::{SinkExt, StreamExt, channel::mpsc::UnboundedSender};
 use gloo_net::websocket::{Message, futures::WebSocket};
@@ -56,16 +57,17 @@ pub fn App() -> View {
         }
     });
     spawn_local({
-        let users = users.clone();
-        let ws_sender = ws_sender.clone();
         async move {
-            let ws = WebSocket::open(&HOST).expect("no se pudo conectar al websocket");
+            let ws = match WebSocket::open(&HOST) {
+                Ok(socket) => socket,
+                Err(e) => panic!("{e}"),
+            };
             console_log!("Connected to WebSocket");
             let (mut write, mut read) = ws.split();
             let (tx, mut rx) = futures::channel::mpsc::unbounded();
             ws_sender.set(Some(tx));
             spawn_local({
-                let users = users.clone();
+                let users = users;
                 async move {
                     while let Some(msg) = read.next().await {
                         if let Ok(Message::Text(txt)) = msg {
@@ -83,11 +85,11 @@ pub fn App() -> View {
                                     room.set(message.room);
                                     let size = message.users.len();
                                     users.set(message.users);
-                                    state.set(
-                                        (size > 0)
-                                            .then_some(State::Logged)
-                                            .unwrap_or(State::NotLogged),
-                                    );
+                                    state.set(if size > 0 {
+                                        State::Logged
+                                    } else {
+                                        State::NotLogged
+                                    });
                                 }
                                 Err(e) => console_error!("Error: {}", e),
                             }
@@ -114,15 +116,15 @@ pub fn App() -> View {
                             console_dbg!(&user_role);
                             let user_option = match (master_name.get_clone().as_ref(),dev_name.get_clone().as_ref(),room_code.get_clone().as_ref()){
                                 ("","","") => Err(string!("It is required to select either a Scrum Master name or a Developer name")),
-                                ("",dev_name,"") if dev_name.len() > 0 => Err(string!("If you are a Developer, ask the Scrum Master for the room code")),
-                                ("","",room) if room.len() > 0 => Err(string!("Name input is required")),
-                                ("",dev_name,room) if dev_name.len() > 0 && room.len() > 35 => Ok(User::new(Role::Voter, dev_name, None, room)),
-                                (master_name,"",room) if master_name.len() > 0 => Ok(User::new(Role::Master, master_name, None, room)),
+                                ("",dev_name,"") if !dev_name.is_empty() => Err(string!("If you are a Developer, ask the Scrum Master for the room code")),
+                                ("","",room) if !room.is_empty() => Err(string!("Name input is required")),
+                                ("",dev_name,room) if !dev_name.is_empty() && room.len() > 35 => Ok(User::new(Role::Voter, dev_name, None, room)),
+                                (master_name,"",room) if !master_name.is_empty() => Ok(User::new(Role::Master, master_name, None, room)),
                                 (_,_,_) => Err(string!("Unexpected Error"))
                             };
                             this_user.set(user_option.clone().ok());
                             match user_option {
-                                Ok(user) => send.get_clone().unwrap().send(Message::Text(serde_json::to_string(&MessageText{ message_type: EventType::SetUser, user }).unwrap())).await.unwrap(),
+                                Ok(user) => send_message(send, MessageText{ message_type: EventType::SetUser, user }).await,
                                 Err(err) => {
                                     error.set(err);
                                     show_error.set(true);

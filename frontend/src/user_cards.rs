@@ -1,3 +1,4 @@
+use macros::string;
 use structs::{Role, User};
 use sycamore::prelude::*;
 #[derive(Clone, Copy, Debug, Default)]
@@ -17,7 +18,7 @@ pub fn UserCards(mut users: Vec<User>, show: Signal<bool>, side: Side) -> View {
             let name = user.name().to_string();
             let name2 = name.clone();
             let role = user.role();
-            let value = user.value().clone();
+            let value = user.value();
             view! {
                 article(class=role.to_string()){
                     (match side{
@@ -40,7 +41,7 @@ pub fn UserCards(mut users: Vec<User>, show: Signal<bool>, side: Side) -> View {
                                     }
                                 })){
                                     p(){
-                                        (show.get().then(||value.map(|v|v.to_string()).unwrap_or_default()).unwrap_or_default())
+                                        (if show.get(){value.map(|v|v.to_string()).unwrap_or_default()} else {string!("")})
                                     }
                                 }
                             }

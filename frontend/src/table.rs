@@ -1,8 +1,8 @@
 use crate::{
-    libs::copy_to_clipboard,
+    libs::{copy_to_clipboard, send_message},
     user_cards::{Side, UserCards},
 };
-use futures::{SinkExt, channel::mpsc::UnboundedSender};
+use futures::channel::mpsc::UnboundedSender;
 use gloo_net::websocket::Message;
 use gloo_timers::future::sleep;
 use std::{collections::HashMap, rc::Rc, time::Duration};
@@ -122,7 +122,7 @@ pub fn Table(
             (match empty_room.get() {
                 false => {
                     let master_name = master_name.clone();
-                    let send = ws_sender.clone();
+                    let send = ws_sender;
                     let user = user.clone();
                     view!{
                         section(id="scrum_master_name"){
@@ -144,7 +144,7 @@ pub fn Table(
                                                     let user = user.to_owned();
                                                     console_dbg!(&user);
                                                     spawn_local(async move {
-                                                        send.get_clone().unwrap().send(Message::Text(serde_json::to_string(&MessageText{ message_type: EventType::Restart, user }).unwrap())).await.unwrap();
+                                                        send_message(*send,MessageText{ message_type: EventType::Restart, user }).await
                                                     });
                                                 }){"Reset"}
                                             }
@@ -158,7 +158,7 @@ pub fn Table(
                                                     let user = user.to_owned();
                                                     console_dbg!(&user);
                                                     spawn_local(async move {
-                                                        send.get_clone().unwrap().send(Message::Text(serde_json::to_string(&MessageText{ message_type: EventType::Show, user }).unwrap())).await.unwrap();
+                                                        send_message(*send, MessageText{ message_type: EventType::Show, user }).await;
                                                     });
                                                 }){"Show cards"}
                                             }
@@ -168,12 +168,12 @@ pub fn Table(
                                 false => view!{
                                     form(on:submit = move |ev:SubmitEvent| {
                                         ev.prevent_default();
-                                        let ws_sender = ws_sender.clone();
+                                        let ws_sender = ws_sender;
                                         let mut user = user.clone();
                                         spawn_local(async move {
                                             let send = ws_sender.split().0;
                                             user.set_value(number.get_clone().parse().ok());
-                                            send.get_clone().unwrap().send(Message::Text(serde_json::to_string(&MessageText{ message_type: EventType::SetUser, user }).unwrap())).await.unwrap();
+                                            send_message(send, MessageText{ message_type: EventType::SetUser, user }).await;
                                         });
                                     }){
                                         select(id="user_vote",bind:value=number){
@@ -197,7 +197,7 @@ pub fn Table(
                             })
                             div(class="card master") {
                                 p(){
-                                    (show.get().then(||value.get().to_string()).unwrap_or_default())
+                                    (if show.get(){value.get().to_string()} else {Default::default()})
                                 }
                             }
                         }

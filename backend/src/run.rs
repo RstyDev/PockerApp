@@ -4,22 +4,25 @@ use axum::{
         State, WebSocketUpgrade,
         ws::{Message, WebSocket},
     },
+    response::IntoResponse,
+    routing::get,
 };
-
-use axum::response::IntoResponse;
-use axum::routing::get;
 use dotenv::dotenv;
 use futures_util::{SinkExt, StreamExt};
 use macros::{arc_mutex, string};
-use std::collections::HashMap;
-use std::env;
-use std::net::SocketAddr;
-use std::sync::Arc;
+use std::{
+    collections::HashMap,
+    env,
+    io::{Error, ErrorKind},
+    net::SocketAddr,
+    sync::Arc,
+};
 use structs::{EventType, MessageBack, MessageText, Role, User};
-use tokio::net::TcpListener;
-use tokio::sync::broadcast::Sender;
-use tokio::sync::{Mutex, broadcast};
-use tokio::task;
+use tokio::{
+    net::TcpListener,
+    sync::{Mutex, broadcast, broadcast::Sender},
+    task,
+};
 use uuid::Uuid;
 
 #[derive(Debug, Clone)]
@@ -62,11 +65,12 @@ pub async fn run() -> std::io::Result<()> {
     let app = Router::new()
         .route("/ws", get(ws_handler))
         .with_state(state);
-
-    let addr: SocketAddr = env::var(string!("HOST"))
-        .expect("HOST not set")
-        .parse()
-        .unwrap();
+    let addr: SocketAddr = match env::var(string!("HOST")) {
+        Ok(e) => e
+            .parse()
+            .map_err(|e| Error::new(ErrorKind::InvalidInput, e))?,
+        Err(e) => panic!("{e}"),
+    };
     let listener = TcpListener::bind(addr).await?;
     println!("WebSocket server in {}", addr);
 
@@ -115,8 +119,7 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
                         .users
                         .lock()
                         .await
-                        .iter()
-                        .map(|(_, v)| v)
+                        .values()
                         .cloned()
                         .collect::<Vec<User>>();
                     if let Err(e) = send
@@ -126,7 +129,7 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
                                 show: false,
                                 room: room.id.to_owned(),
                             })
-                            .unwrap()
+                            .unwrap_or_default()
                             .into(),
                         ))
                         .await
@@ -149,8 +152,8 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
                                             .lock()
                                             .await
                                             .iter()
-                                            .cloned()
-                                            .find(|room| room.id.eq(user.room()));
+                                            .find(|room| room.id.eq(user.room()))
+                                            .cloned();
                                     }
                                     if let Some(room) = room_lock {
                                         let users;
@@ -159,8 +162,7 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
                                                 .users
                                                 .lock()
                                                 .await
-                                                .iter()
-                                                .map(|(_, v)| v)
+                                                .values()
                                                 .cloned()
                                                 .collect::<Vec<User>>();
                                         }
@@ -171,7 +173,7 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
                                                     show: true,
                                                     users,
                                                 })
-                                                .unwrap()
+                                                .unwrap_or_default()
                                                 .into(),
                                             ))
                                             .await
@@ -194,8 +196,8 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
                                             .lock()
                                             .await
                                             .iter()
-                                            .cloned()
-                                            .find(|room| room.id.eq(user.room()));
+                                            .find(|room| room.id.eq(user.room()))
+                                            .cloned();
                                     }
                                     if let Some(room) = room_lock {
                                         let mut users = vec![];
@@ -213,7 +215,7 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
                                                     show: false,
                                                     users,
                                                 })
-                                                .unwrap()
+                                                .unwrap_or_default()
                                                 .into(),
                                             ))
                                             .await
@@ -236,8 +238,8 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
                                             .lock()
                                             .await
                                             .iter()
-                                            .cloned()
-                                            .find(|room| room.id.eq(user_lock.room()));
+                                            .find(|room| room.id.eq(user_lock.room()))
+                                            .cloned();
                                     }
                                     if let Some(room) = room_lock {
                                         let users;
@@ -246,8 +248,7 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
                                                 .users
                                                 .lock()
                                                 .await
-                                                .iter()
-                                                .map(|(_, v)| v)
+                                                .values()
                                                 .cloned()
                                                 .collect::<Vec<User>>();
                                         }
@@ -258,7 +259,7 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
                                                     show: false,
                                                     room: room.id.to_owned(),
                                                 })
-                                                .unwrap()
+                                                .unwrap_or_default()
                                                 .into(),
                                             ))
                                             .await
@@ -298,8 +299,8 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
                         }
                         match rooms_lock
                             .iter()
-                            .cloned()
                             .find(|room| room.id.eq(&new_user.room()))
+                            .cloned()
                         {
                             Some(room) => {
                                 room.users
@@ -329,10 +330,17 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
                         let i = rooms_lock
                             .iter()
                             .enumerate()
-                            .find_map(|(i, r)| r.id.eq(message.user.room()).then_some(i));
-                        let room = rooms_lock.get_mut(i.unwrap()).unwrap();
+                            .find_map(|(i, r)| r.id.eq(message.user.room()).then_some(i))
+                            .unwrap_or_default();
+                        let room = match rooms_lock.get_mut(i) {
+                            Some(room) => room,
+                            None => break,
+                        };
                         room.show = true;
-                        room.tx.send(string!("show")).unwrap();
+                        if let Err(e) = room.tx.send(string!("show")) {
+                            eprintln!("Error {e}");
+                            break;
+                        }
                         continue;
                     }
                     EventType::Restart => {
@@ -341,10 +349,17 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
                         let i = rooms_lock
                             .iter()
                             .enumerate()
-                            .find_map(|(i, r)| r.id.eq(message.user.room()).then_some(i));
-                        let room = rooms_lock.get_mut(i.unwrap()).unwrap();
+                            .find_map(|(i, r)| r.id.eq(message.user.room()).then_some(i))
+                            .unwrap_or_default();
+                        let room = match rooms_lock.get_mut(i) {
+                            Some(room) => room,
+                            None => break,
+                        };
                         room.show = false;
-                        room.tx.send(string!("restart")).unwrap();
+                        if let Err(e) = room.tx.send(string!("restart")) {
+                            eprintln!("Error: {e}");
+                            break;
+                        }
                         continue;
                     }
                 },
@@ -352,51 +367,49 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
                     dbg!(&e);
                 }
             }
-            if let Some(user) = this_user.lock().await.as_ref() {
-                if let Some(room) = state
+            if let Some(user) = this_user.lock().await.as_ref()
+                && let Some(room) = state
                     .rooms
                     .lock()
                     .await
                     .iter()
-                    .cloned()
                     .find(|room| room.id.eq(user.room()))
-                {
-                    if let Err(e) = room.tx.send(serde_json::to_string(&user).unwrap()) {
-                        dbg!(&e);
-                    }
-                }
+                    .cloned()
+                && let Err(e) = room
+                    .tx
+                    .send(serde_json::to_string(&user).unwrap_or_default())
+            {
+                dbg!(&e);
             }
         }
         dbg!(&this_user);
-        if let Some(user) = this_user.lock().await.as_ref() {
-            if let Some(room) = state
+        if let Some(user) = this_user.lock().await.as_ref()
+            && let Some(room) = state
                 .rooms
                 .lock()
                 .await
                 .iter()
-                .cloned()
                 .find(|room| room.id.eq(user.room()))
-            {
-                let mut users_lock = room.users.lock().await;
-                match user.role() {
-                    Role::Master => users_lock.clear(),
-                    Role::Voter => {
-                        users_lock.remove(user.name());
-                    }
+                .cloned()
+        {
+            let mut users_lock = room.users.lock().await;
+            match user.role() {
+                Role::Master => users_lock.clear(),
+                Role::Voter => {
+                    users_lock.remove(user.name());
                 }
-                if let Err(e) = room.tx.send(
-                    serde_json::to_string(
-                        &users_lock
-                            .iter()
-                            .map(|(_, v)| v)
-                            .cloned()
-                            .collect::<Vec<User>>(),
-                    )
-                    .unwrap(),
-                ) {
-                    dbg!(&e);
-                };
             }
+            if let Err(e) = room.tx.send(
+                match serde_json::to_string(&users_lock.values().cloned().collect::<Vec<User>>()) {
+                    Ok(data) => data,
+                    Err(e) => {
+                        eprintln!("Error: {e}");
+                        string!("")
+                    }
+                },
+            ) {
+                dbg!(&e);
+            };
         }
         // if let Some(user) = this_user.lock().await.as_ref() {
         //     println!("Removing user {:#?}",user);
