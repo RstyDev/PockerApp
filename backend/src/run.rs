@@ -294,7 +294,7 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
                     EventType::SetUser => {
                         let mut rooms_lock = state.rooms.lock().await;
                         let mut new_user = message.user;
-                        if new_user.role() == Role::Master {
+                        if new_user.role() == Role::Master && new_user.room().len() < 36 {
                             new_user.set_room(Uuid::new_v4().to_string());
                         }
                         match rooms_lock

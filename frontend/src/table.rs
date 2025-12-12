@@ -144,7 +144,9 @@ pub fn Table(
                                                     let user = user.to_owned();
                                                     console_dbg!(&user);
                                                     spawn_local(async move {
-                                                        send_message(*send,MessageText{ message_type: EventType::Restart, user }).await
+                                                        if let Err(e) =  send_message(*send,MessageText{ message_type: EventType::Restart, user }).await {
+                                                            console_dbg!(&e);
+                                                        }
                                                     });
                                                 }){"Reset"}
                                             }
@@ -158,7 +160,9 @@ pub fn Table(
                                                     let user = user.to_owned();
                                                     console_dbg!(&user);
                                                     spawn_local(async move {
-                                                        send_message(*send, MessageText{ message_type: EventType::Show, user }).await;
+                                                        if let Err(e) = send_message(*send, MessageText{ message_type: EventType::Show, user }).await {
+                                                            console_dbg!(&e);
+                                                        }
                                                     });
                                                 }){"Show cards"}
                                             }
@@ -173,7 +177,9 @@ pub fn Table(
                                         spawn_local(async move {
                                             let send = ws_sender.split().0;
                                             user.set_value(number.get_clone().parse().ok());
-                                            send_message(send, MessageText{ message_type: EventType::SetUser, user }).await;
+                                            if let Err(e) = send_message(send, MessageText{ message_type: EventType::SetUser, user }).await {
+                                                console_dbg!(&e);
+                                            }
                                         });
                                     }){
                                         select(id="user_vote",bind:value=number){

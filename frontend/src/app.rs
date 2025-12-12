@@ -10,14 +10,43 @@ use std::time::Duration;
 use structs::{EventType, MessageBack, MessageText, Role, User};
 use sycamore::prelude::*;
 use sycamore::rt::console_error;
+use wasm_bindgen::JsValue;
 use wasm_bindgen_futures::spawn_local;
-use web_sys::SubmitEvent;
+use web_sys::{SubmitEvent, js_sys::Date, window};
 
 pub static HOST: LazyLock<String> = LazyLock::new(|| std::env!("BACKEND").to_string());
-
+fn get_token() -> Result<Option<User>, JsValue> {
+    if let Some(window) = window()
+        && let Some(storage) = window.session_storage()?
+        && let Some(data) = storage.get_item("poker_token")?
+    {
+        if let Some(value) = data.split("|").nth(0) {
+            console_dbg!(value);
+            Ok(Some(
+                serde_json::from_str(value)
+                    .map_err(|e| JsValue::from_str(e.to_string().as_str()))?,
+            ))
+        } else {
+            Ok(None)
+        }
+    } else {
+        Ok(None)
+    }
+}
+fn save_token(token: String) -> Result<(), JsValue> {
+    if let Some(window) = window()
+        && let Some(storage) = window.session_storage()?
+    {
+        let expiry = Date::now() + 7200_000.0; // 2 hours in ms
+        let data = format!("{}|{}", token, expiry);
+        storage.set_item("poker_token", &data)?
+    }
+    Ok(())
+}
 #[component]
 pub fn App() -> View {
     let master_name = create_signal(String::new());
+    let first_loaded = create_signal(false);
     let dev_name = create_signal(String::new());
     let room_code = create_signal(String::new());
     let master_disabled =
@@ -25,6 +54,13 @@ pub fn App() -> View {
     let dev_disabled = create_selector(move || master_name.with(|v| v.len()) > 0);
     let error = create_signal(string!(""));
     let show_error = create_signal(false);
+    let this_user = create_signal(match get_token() {
+        Ok(user) => user,
+        Err(e) => {
+            console_dbg!(&e);
+            None
+        }
+    });
     create_effect(move || {
         let err = show_error.get();
         spawn_local(async move {
@@ -36,20 +72,47 @@ pub fn App() -> View {
         });
     });
     let users = create_signal(Vec::<User>::new());
-    let this_user = create_signal(None::<User>);
     let show = create_signal(false);
     let state = create_signal(State::NotLogged);
     let ws_sender: Signal<Option<UnboundedSender<Message>>> =
         create_signal(None::<UnboundedSender<Message>>);
+    console_log!("-.-.-before effect {:#?}", this_user.get_clone_untracked());
+    create_effect(move || {
+        // !used_token.get() &&
+        if first_loaded.get()
+            && let Some(_) = ws_sender.get_clone_untracked()
+        {
+            console_log!("-.-.-effect {:#?}", this_user.get_clone_untracked());
+            //if this_user.with(|u| u.is_some()) {
+            spawn_local(async move {
+                //while this_user.with(|u|u.is_none());
+                while let Some(user) = this_user.get_clone_untracked()
+                    && let Err(e) = send_message(
+                        *ws_sender,
+                        MessageText {
+                            message_type: EventType::SetUser,
+                            user: user.clone(),
+                        },
+                    )
+                    .await
+                {
+                    console_log!("{}", e);
+                    console_log!("Not logged yet");
+                }
+            });
+            /*} else {
+                console_log!("No user is set")
+            }*/
+        }
+    });
     let user_name = create_signal(String::new());
     let room = create_signal(String::new());
 
-    let user_role = create_signal(string!("Master"));
     create_memo(move || console_log!("Status: {:#?}", state.get_clone()));
     create_memo(move || {
         users.track();
         if users.with(|u| u.len()) == 0 {
-            this_user.set_silent(None);
+            //this_user.set_silent(None);
             show.set_silent(false);
             user_name.set_silent(String::new());
             room.set_silent(String::new());
@@ -64,8 +127,11 @@ pub fn App() -> View {
             };
             console_log!("Connected to WebSocket");
             let (mut write, mut read) = ws.split();
+
             let (tx, mut rx) = futures::channel::mpsc::unbounded();
+
             ws_sender.set(Some(tx));
+            first_loaded.set(true);
             spawn_local({
                 let users = users;
                 async move {
@@ -80,6 +146,17 @@ pub fn App() -> View {
                                         user.set_room(room_id);
                                         user.to_owned()
                                     });
+                                    if let Some(user) = current_user.as_ref() {
+                                        if let Err(e) =
+                                            save_token(serde_json::to_string(user).unwrap())
+                                        {
+                                            console_log!("User not saved");
+                                            console_dbg!(&e);
+                                        } else {
+                                            console_log!("Token saved");
+                                            console_dbg!(&(get_token()));
+                                        }
+                                    }
                                     this_user.set(current_user);
                                     show.set(message.show);
                                     room.set(message.room);
@@ -113,7 +190,6 @@ pub fn App() -> View {
                         console_log!("Submitted");
                         spawn_local(async move {
                             let send = ws_sender.split().0;
-                            console_dbg!(&user_role);
                             let user_option = match (master_name.get_clone().as_ref(),dev_name.get_clone().as_ref(),room_code.get_clone().as_ref()){
                                 ("","","") => Err(string!("It is required to select either a Scrum Master name or a Developer name")),
                                 ("",dev_name,"") if !dev_name.is_empty() => Err(string!("If you are a Developer, ask the Scrum Master for the room code")),
@@ -124,7 +200,9 @@ pub fn App() -> View {
                             };
                             this_user.set(user_option.clone().ok());
                             match user_option {
-                                Ok(user) => send_message(send, MessageText{ message_type: EventType::SetUser, user }).await,
+                                Ok(user) => if let Err(e) = send_message(send, MessageText{ message_type: EventType::SetUser, user }).await {
+                                    console_dbg!(&e);
+                                },
                                 Err(err) => {
                                     error.set(err);
                                     show_error.set(true);
