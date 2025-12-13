@@ -61,7 +61,7 @@ main {
 .Voter {
     display: flex;
     flex-direction: row;
-    flex: 0 1 30%;
+    flex: 0 1 27%;
     align-items: center;
     justify-content: center;
 }
@@ -213,7 +213,12 @@ input:disabled {
     color: #eee; /* Texto más tenue */
     cursor: not-allowed; /* Cursor indicando que no se puede usar */
 }
-
+#right,
+#left {
+    & article div p {
+        margin: 10px 0;
+    }
+}
 #user_vote {
     padding: 0 15px;
 }
@@ -245,6 +250,8 @@ input:disabled {
 }
 
 aside {
+    overflow-y: auto;
+    overscroll-behavior: contain;
     height: 40dvh;
     display: flex;
     flex-direction: row;

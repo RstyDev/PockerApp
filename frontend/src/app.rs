@@ -37,7 +37,7 @@ fn save_token(token: String) -> Result<(), JsValue> {
     if let Some(window) = window()
         && let Some(storage) = window.session_storage()?
     {
-        let expiry = Date::now() + 7200_000.0; // 2 hours in ms
+        let expiry = Date::now() + 10_200_000.0; // 3 hours in ms
         let data = format!("{}|{}", token, expiry);
         storage.set_item("poker_token", &data)?
     }
@@ -107,7 +107,6 @@ pub fn App() -> View {
     });
     let user_name = create_signal(String::new());
     let room = create_signal(String::new());
-
     create_memo(move || console_log!("Status: {:#?}", state.get_clone()));
     create_memo(move || {
         users.track();
@@ -230,7 +229,7 @@ pub fn App() -> View {
                         }
                     }
                 },
-                State::Logged => view!{ Table(user = this_user.get_clone().unwrap_or_default(),show = show, users = users, ws_sender = ws_sender) }
+                State::Logged => view!{ Table(user = this_user.map(|u|u.as_ref().cloned().unwrap_or_default()),show = show, users = users, ws_sender = ws_sender) }
             })
         }
     }

@@ -8,7 +8,12 @@ pub enum Side {
     Right,
 }
 #[component(inline_props)]
-pub fn UserCards(mut users: Vec<User>, show: Signal<bool>, side: Side) -> View {
+pub fn UserCards(
+    mut users: Vec<User>,
+    this_user: ReadSignal<User>,
+    show: Signal<bool>,
+    side: Side,
+) -> View {
     let show = create_selector(move || show.get());
 
     users.sort_by(|u, o| u.name().cmp(o.name()));
@@ -19,6 +24,7 @@ pub fn UserCards(mut users: Vec<User>, show: Signal<bool>, side: Side) -> View {
             let name2 = name.clone();
             let role = user.role();
             let value = user.value();
+            let is_current = this_user.with_untracked(|u|u.name().eq(user.name()));
             view! {
                 article(class=role.to_string()){
                     (match side{
@@ -41,7 +47,11 @@ pub fn UserCards(mut users: Vec<User>, show: Signal<bool>, side: Side) -> View {
                                     }
                                 })){
                                     p(){
-                                        (if show.get(){value.map(|v|v.to_string()).unwrap_or_default()} else {string!("")})
+                                        (match is_current {
+                                            true => value.map(|v|v.to_string()).unwrap_or_default(),
+                                            false => if show.get(){value.map(|v|v.to_string()).unwrap_or_default()} else {string!("")},
+                                        })
+
                                     }
                                 }
                             }

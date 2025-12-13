@@ -13,12 +13,12 @@ use web_sys::SubmitEvent;
 
 #[component(inline_props)]
 pub fn Table(
-    user: User,
+    user: ReadSignal<User>,
     users: Signal<Vec<User>>,
     show: Signal<bool>,
     ws_sender: Signal<Option<UnboundedSender<Message>>>,
 ) -> View {
-    let is_master = user.role() == Role::Master;
+    let is_master = user.with(|u| u.role()) == Role::Master;
     let copied = create_signal(false);
     create_effect(move || {
         let cop = copied.get();
@@ -30,6 +30,7 @@ pub fn Table(
             }
         });
     });
+
     let split_users = create_selector(move || {
         let users = users
             .get_clone()
@@ -42,6 +43,13 @@ pub fn Table(
     });
     let empty_room =
         create_selector(move || split_users.with(|(a, b)| a.is_empty() && b.is_empty()));
+    create_effect(move || {
+        if empty_room.get() && !is_master {
+            if let Err(e) = window().location().reload() {
+                console_dbg!(e);
+            }
+        }
+    });
     let value: ReadSignal<u8> = create_selector(move || {
         let numbers = users
             .get_clone()
@@ -123,13 +131,12 @@ pub fn Table(
                 false => {
                     let master_name = master_name.clone();
                     let send = ws_sender;
-                    let user = user.clone();
                     view!{
                         section(id="scrum_master_name"){
                             p(){ (format!("Scrum Master: {}",master_name)) }
                         }
                         aside(id="left"){
-                            UserCards(users = split_users.get_clone().0.to_owned(), show = show, side = Side::Left)
+                            UserCards(users = split_users.get_clone().0.to_owned(), this_user= user, show = show, side = Side::Left)
                         }
                         section(id="center"){
                             (match is_master{
@@ -137,14 +144,12 @@ pub fn Table(
                                     (match show.get(){
                                         true => {
                                             let send = send.to_owned();
-                                            let user = user.to_owned();
                                             view!{
                                                 button(on:click = move |_| {
                                                     let send = send.to_owned();
-                                                    let user = user.to_owned();
                                                     console_dbg!(&user);
                                                     spawn_local(async move {
-                                                        if let Err(e) =  send_message(*send,MessageText{ message_type: EventType::Restart, user }).await {
+                                                        if let Err(e) =  send_message(*send,MessageText{ message_type: EventType::Restart, user: user.get_clone() }).await {
                                                             console_dbg!(&e);
                                                         }
                                                     });
@@ -153,14 +158,12 @@ pub fn Table(
                                         },
                                         false => {
                                             let send = send.to_owned();
-                                            let user = user.to_owned();
                                             view!{
                                                 button(on:click = move |_|{
                                                     let send = send.to_owned();
-                                                    let user = user.to_owned();
                                                     console_dbg!(&user);
                                                     spawn_local(async move {
-                                                        if let Err(e) = send_message(*send, MessageText{ message_type: EventType::Show, user }).await {
+                                                        if let Err(e) = send_message(*send, MessageText{ message_type: EventType::Show, user: user.get_clone() }).await {
                                                             console_dbg!(&e);
                                                         }
                                                     });
@@ -173,7 +176,7 @@ pub fn Table(
                                     form(on:submit = move |ev:SubmitEvent| {
                                         ev.prevent_default();
                                         let ws_sender = ws_sender;
-                                        let mut user = user.clone();
+                                        let mut user = user.get_clone();
                                         spawn_local(async move {
                                             let send = ws_sender.split().0;
                                             user.set_value(number.get_clone().parse().ok());
@@ -208,13 +211,20 @@ pub fn Table(
                             }
                         }
                         aside(id="right"){
-                            UserCards(users = split_users.get_clone().1.to_owned(), show = show, side = Side::Right)
+                            UserCards(users = split_users.get_clone().1.to_owned(), this_user= user, show = show, side = Side::Right)
                         }
                     }
                 },
                 true => view!{
                     article(id="code_message"){
-                        p(){"Please give the connection code to the team so they can connect"}
+                        (match is_master {
+                            true => view!{
+                                p(){"Please give the connection code to the team so they can connect"}
+                            },
+                            false => view!{
+                                p(){"Reloading..."}
+                            },
+                        })
                     }
                 },
             })
